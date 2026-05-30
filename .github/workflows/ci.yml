@@ -31,7 +31,6 @@ jobs:
 
       - name: Ruff check
         run: ruff check . --fix
-        run: ruff format .
 
       - name: Mypy check
         run: mypy bot
