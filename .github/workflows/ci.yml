@@ -30,7 +30,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Ruff check
-        run: ruff check . --fix
+        run: ruff check .
 
       - name: Mypy check
         run: mypy bot
@@ -40,8 +40,8 @@ jobs:
 
       - name: Pytest
         run: |
-          if [ -d tests ]; then
+          if [ -d tests ] && find tests -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
             pytest
           else
-            echo "No tests directory found, skipping pytest"
+            echo "No tests found, skipping pytest"
           fi
