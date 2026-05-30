@@ -1,0 +1,488 @@
+"""Ticket lifecycle and support panel service."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import timedelta
+
+import hikari
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from bot.database.enums import TicketEventType, TicketStatus
+from bot.database.models import GuildSettings, Ticket
+from bot.database.repositories import (
+    GuildSettingsRepository,
+    SupportRoleRepository,
+    TicketEventRepository,
+    TicketRepository,
+    UserTicketChannelRepository,
+)
+from bot.utils.formatters import ticket_thread_name, user_ticket_channel_name
+from bot.utils.limits import MAX_OPEN_TICKETS_PER_USER
+from bot.utils.permissions import user_ticket_channel_overwrites
+
+LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class PanelValidationResult:
+    """Validation result for a support panel component interaction."""
+
+    is_valid: bool
+    reason: str | None = None
+    settings: GuildSettings | None = None
+
+
+@dataclass(slots=True)
+class TicketCreationPrompt:
+    """Validation result used before opening the create-ticket modal."""
+
+    validation: PanelValidationResult
+
+
+@dataclass(slots=True)
+class UserTicketList:
+    """Tickets shown to a user from the support panel."""
+
+    validation: PanelValidationResult
+    open_tickets: list[Ticket]
+    closed_tickets: list[Ticket]
+
+
+@dataclass(slots=True)
+class TicketCreationResult:
+    """Result of creating a Discord ticket thread and DB record."""
+
+    validation: PanelValidationResult
+    ticket: Ticket | None = None
+    user_channel_id: int | None = None
+    thread_id: int | None = None
+    user_channel_created: bool = False
+
+
+@dataclass(slots=True)
+class TicketCloseValidationResult:
+    """Validation result used before opening or applying ticket closure."""
+
+    is_valid: bool
+    reason: str | None = None
+    ticket: Ticket | None = None
+    settings: GuildSettings | None = None
+
+
+@dataclass(slots=True)
+class TicketCloseResult:
+    """Result of closing a ticket."""
+
+    validation: TicketCloseValidationResult
+    ticket: Ticket | None = None
+
+
+class TicketService:
+    """Service API for ticket-facing support panel actions."""
+
+    def __init__(
+        self,
+        settings_repository: GuildSettingsRepository | None = None,
+        ticket_repository: TicketRepository | None = None,
+        user_channel_repository: UserTicketChannelRepository | None = None,
+        support_role_repository: SupportRoleRepository | None = None,
+        ticket_event_repository: TicketEventRepository | None = None,
+    ) -> None:
+        self._settings_repository = settings_repository or GuildSettingsRepository()
+        self._ticket_repository = ticket_repository or TicketRepository()
+        self._user_channel_repository = user_channel_repository or UserTicketChannelRepository()
+        self._support_role_repository = support_role_repository or SupportRoleRepository()
+        self._ticket_event_repository = ticket_event_repository or TicketEventRepository()
+
+    async def prepare_ticket_creation(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+        user_id: int,
+    ) -> TicketCreationPrompt:
+        """Validate panel context before ticket creation starts."""
+
+        validation = await self._validate_panel_context(
+            session,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            message_id=message_id,
+        )
+        if validation.is_valid:
+            validation = await self._validate_open_ticket_limit(
+                session,
+                guild_id=guild_id,
+                user_id=user_id,
+                settings=validation.settings,
+            )
+        return TicketCreationPrompt(validation=validation)
+
+    async def list_user_tickets(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+        user_id: int,
+        open_limit: int = 6,
+        closed_limit: int = 6,
+    ) -> UserTicketList:
+        """Return recent user tickets after validating the support panel context."""
+
+        validation = await self._validate_panel_context(
+            session,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            message_id=message_id,
+        )
+        if not validation.is_valid:
+            return UserTicketList(validation=validation, open_tickets=[], closed_tickets=[])
+
+        open_tickets = await self._ticket_repository.list_open_for_user(
+            session,
+            guild_id=guild_id,
+            user_id=user_id,
+            limit=open_limit,
+        )
+        closed_tickets = await self._ticket_repository.list_closed_for_user(
+            session,
+            guild_id=guild_id,
+            user_id=user_id,
+            limit=closed_limit,
+        )
+        return UserTicketList(
+            validation=validation,
+            open_tickets=open_tickets,
+            closed_tickets=closed_tickets,
+        )
+
+    async def create_ticket(
+        self,
+        session: AsyncSession,
+        rest: hikari.api.RESTClient,
+        *,
+        guild_id: int,
+        panel_channel_id: int,
+        panel_message_id: int,
+        user_id: int,
+        title: str,
+        description: str,
+    ) -> TicketCreationResult:
+        """Create a new ticket channel thread and persist the ticket record."""
+
+        validation = await self._validate_panel_context(
+            session,
+            guild_id=guild_id,
+            channel_id=panel_channel_id,
+            message_id=panel_message_id,
+        )
+        if not validation.is_valid:
+            return TicketCreationResult(validation=validation)
+
+        validation = await self._validate_open_ticket_limit(
+            session,
+            guild_id=guild_id,
+            user_id=user_id,
+            settings=validation.settings,
+        )
+        if not validation.is_valid:
+            return TicketCreationResult(validation=validation)
+
+        settings = validation.settings
+        if settings is None or settings.category_id is None:
+            return TicketCreationResult(
+                validation=PanelValidationResult(
+                    is_valid=False,
+                    reason=(
+                        "Категория тикетов не настроена. "
+                        "Администратор должен повторить `/tickets-setup`."
+                    ),
+                    settings=settings,
+                )
+            )
+
+        bot_user = await rest.fetch_my_user()
+        user_channel, channel_created = await self._get_or_create_user_channel(
+            session,
+            rest,
+            guild_id=guild_id,
+            user_id=user_id,
+            bot_user_id=int(bot_user.id),
+            category_id=settings.category_id,
+        )
+        ticket_number = await self._ticket_repository.next_ticket_number(session, guild_id)
+        thread = await rest.create_thread(
+            int(user_channel.id),
+            hikari.ChannelType.GUILD_PUBLIC_THREAD,
+            ticket_thread_name(ticket_number, title),
+            auto_archive_duration=timedelta(days=7),
+        )
+        ticket = await self._ticket_repository.create(
+            session,
+            guild_id=guild_id,
+            user_id=user_id,
+            channel_id=int(user_channel.id),
+            thread_id=int(thread.id),
+            ticket_number=ticket_number,
+            title=title,
+            description=description,
+        )
+        await self._ticket_event_repository.create(
+            session,
+            ticket_id=ticket.id,
+            event_type=TicketEventType.TICKET_CREATED,
+            actor_id=user_id,
+            payload={
+                "channel_id": int(user_channel.id),
+                "thread_id": int(thread.id),
+                "title": title,
+            },
+        )
+
+        return TicketCreationResult(
+            validation=validation,
+            ticket=ticket,
+            user_channel_id=int(user_channel.id),
+            thread_id=int(thread.id),
+            user_channel_created=channel_created,
+        )
+
+    async def validate_ticket_close(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        thread_id: int,
+        actor_id: int,
+        actor_role_ids: set[int],
+        actor_permissions: hikari.Permissions,
+    ) -> TicketCloseValidationResult:
+        """Validate that an actor may close the ticket for a thread."""
+
+        ticket = await self._ticket_repository.get_by_thread_id(
+            session,
+            guild_id=guild_id,
+            thread_id=thread_id,
+        )
+        settings = await self._settings_repository.get_by_guild_id(session, guild_id)
+        if ticket is None:
+            return TicketCloseValidationResult(
+                is_valid=False,
+                reason="Эта ветка не связана с сохраненным обращением.",
+                settings=settings,
+            )
+
+        if ticket.status == TicketStatus.CLOSED:
+            return TicketCloseValidationResult(
+                is_valid=False,
+                reason="Это обращение уже закрыто и не может быть открыто повторно.",
+                ticket=ticket,
+                settings=settings,
+            )
+
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        support_role_ids = {role.role_id for role in support_roles}
+        if not self._can_close_ticket(
+            ticket,
+            actor_id=actor_id,
+            actor_role_ids=actor_role_ids,
+            support_role_ids=support_role_ids,
+            actor_permissions=actor_permissions,
+        ):
+            return TicketCloseValidationResult(
+                is_valid=False,
+                reason="У вас нет прав закрыть это обращение.",
+                ticket=ticket,
+                settings=settings,
+            )
+
+        return TicketCloseValidationResult(
+            is_valid=True,
+            ticket=ticket,
+            settings=settings,
+        )
+
+    async def close_ticket(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        thread_id: int,
+        actor_id: int,
+        actor_role_ids: set[int],
+        actor_permissions: hikari.Permissions,
+    ) -> TicketCloseResult:
+        """Close a ticket permanently in the database."""
+
+        validation = await self.validate_ticket_close(
+            session,
+            guild_id=guild_id,
+            thread_id=thread_id,
+            actor_id=actor_id,
+            actor_role_ids=actor_role_ids,
+            actor_permissions=actor_permissions,
+        )
+        if not validation.is_valid or validation.ticket is None:
+            return TicketCloseResult(validation=validation)
+
+        ticket = await self._ticket_repository.close(
+            session,
+            validation.ticket,
+            closed_by_id=actor_id,
+        )
+        await self._ticket_event_repository.create(
+            session,
+            ticket_id=ticket.id,
+            event_type=TicketEventType.TICKET_CLOSED,
+            actor_id=actor_id,
+            payload={"thread_id": ticket.thread_id},
+        )
+        return TicketCloseResult(validation=validation, ticket=ticket)
+
+    async def _validate_panel_context(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+    ) -> PanelValidationResult:
+        settings = await self._settings_repository.get_by_guild_id(session, guild_id)
+        if settings is None:
+            return PanelValidationResult(
+                is_valid=False,
+                reason=(
+                    "Тикет-система еще не настроена. "
+                    "Администратор должен выполнить `/tickets-setup`."
+                ),
+            )
+
+        if not settings.is_enabled:
+            return PanelValidationResult(
+                is_valid=False,
+                reason="Тикет-система сейчас выключена.",
+                settings=settings,
+            )
+
+        if settings.support_channel_id != channel_id or settings.support_message_id != message_id:
+            return PanelValidationResult(
+                is_valid=False,
+                reason=(
+                    "Эта панель поддержки устарела. "
+                    "Используйте актуальное сообщение в канале поддержки."
+                ),
+                settings=settings,
+            )
+
+        return PanelValidationResult(is_valid=True, settings=settings)
+
+    async def _validate_open_ticket_limit(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        user_id: int,
+        settings: GuildSettings | None,
+    ) -> PanelValidationResult:
+        open_ticket_count = await self._ticket_repository.count_open_for_user(
+            session,
+            guild_id=guild_id,
+            user_id=user_id,
+        )
+        if open_ticket_count >= MAX_OPEN_TICKETS_PER_USER:
+            return PanelValidationResult(
+                is_valid=False,
+                reason=(
+                    "У вас уже есть максимальное количество открытых обращений "
+                    f"({MAX_OPEN_TICKETS_PER_USER}). Закройте одно из них перед созданием нового."
+                ),
+                settings=settings,
+            )
+
+        return PanelValidationResult(is_valid=True, settings=settings)
+
+    async def _get_or_create_user_channel(
+        self,
+        session: AsyncSession,
+        rest: hikari.api.RESTClient,
+        *,
+        guild_id: int,
+        user_id: int,
+        bot_user_id: int,
+        category_id: int,
+    ) -> tuple[hikari.GuildTextChannel, bool]:
+        existing_record = await self._user_channel_repository.get(
+            session,
+            guild_id=guild_id,
+            user_id=user_id,
+        )
+        if existing_record is not None:
+            channel = await self._fetch_user_channel(rest, existing_record.channel_id)
+            if channel is not None:
+                return channel, False
+
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        channel = await rest.create_guild_text_channel(
+            guild_id,
+            name=user_ticket_channel_name(user_id),
+            category=category_id,
+            permission_overwrites=user_ticket_channel_overwrites(
+                guild_id=guild_id,
+                user_id=user_id,
+                bot_user_id=bot_user_id,
+                support_role_ids=[role.role_id for role in support_roles],
+            ),
+        )
+        await self._user_channel_repository.upsert(
+            session,
+            guild_id=guild_id,
+            user_id=user_id,
+            channel_id=int(channel.id),
+        )
+        return channel, True
+
+    async def _fetch_user_channel(
+        self,
+        rest: hikari.api.RESTClient,
+        channel_id: int,
+    ) -> hikari.GuildTextChannel | None:
+        try:
+            channel = await rest.fetch_channel(channel_id)
+        except hikari.NotFoundError:
+            return None
+        except hikari.ForbiddenError:
+            LOGGER.warning("Missing permission to fetch stored ticket channel %s", channel_id)
+            return None
+
+        if isinstance(channel, hikari.GuildTextChannel):
+            return channel
+
+        LOGGER.warning("Stored ticket channel %s is not a guild text channel", channel_id)
+        return None
+
+    def _can_close_ticket(
+        self,
+        ticket: Ticket,
+        *,
+        actor_id: int,
+        actor_role_ids: set[int],
+        support_role_ids: set[int],
+        actor_permissions: hikari.Permissions,
+    ) -> bool:
+        if actor_id == ticket.user_id:
+            return True
+        if actor_permissions & hikari.Permissions.ADMINISTRATOR:
+            return True
+        if actor_permissions & (
+            hikari.Permissions.MANAGE_GUILD
+            | hikari.Permissions.MANAGE_CHANNELS
+            | hikari.Permissions.MANAGE_THREADS
+        ):
+            return True
+        return bool(actor_role_ids & support_role_ids)
