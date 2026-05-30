@@ -1,6 +1,7 @@
 """Guild setup orchestration service for `/tickets-setup`."""
 
 from __future__ import annotations
+from typing import TypeVar, cast
 
 import logging
 from collections.abc import Sequence
@@ -21,6 +22,8 @@ LOGS_CHANNEL_NAME = "tickets-logs"
 SETTINGS_CHANNEL_NAME = "tickets-settings"
 
 LOGGER = logging.getLogger(__name__)
+
+ChannelT = TypeVar("ChannelT", hikari.GuildCategory, hikari.GuildTextChannel)
 
 
 @dataclass(slots=True)
@@ -223,18 +226,19 @@ class SetupService:
         created: list[str],
         reused: list[str],
     ) -> hikari.GuildTextChannel:
-        if channel_id is not None:
-            existing = await self._fetch_channel(rest, channel_id, hikari.GuildTextChannel)
-            if existing is not None:
-                reused.append(f"channel #{name}")
-                return existing
-
-        channel = await rest.create_guild_text_channel(
-            guild_id,
-            name=name,
-            category=parent_id,
-            permission_overwrites=permission_overwrites,
-        )
+        if permission_overwrites is None:
+            channel = await rest.create_guild_text_channel(
+                guild_id,
+                name=name,
+                category=parent_id,
+            )
+        else:
+            channel = await rest.create_guild_text_channel(
+                guild_id,
+                name=name,
+                category=parent_id,
+                permission_overwrites=permission_overwrites,
+            )
         created.append(f"channel #{name}")
         return channel
 
@@ -242,8 +246,8 @@ class SetupService:
         self,
         rest: hikari.api.RESTClient,
         channel_id: int,
-        channel_type: type[hikari.GuildCategory] | type[hikari.GuildTextChannel],
-    ) -> hikari.GuildCategory | hikari.GuildTextChannel | None:
+        channel_type: type[ChannelT],
+    ) -> ChannelT | None:
         try:
             channel = await rest.fetch_channel(channel_id)
         except hikari.NotFoundError:
@@ -253,7 +257,8 @@ class SetupService:
             return None
 
         if isinstance(channel, channel_type):
-            return channel
+            return cast(ChannelT, channel)
+
         return None
 
     async def _upsert_support_message(
@@ -357,6 +362,15 @@ class SetupService:
             "is_enabled": True,
         }
         if existing is None:
-            return await self._settings_repository.create(session, guild_id=guild_id, **fields)
+            return await self._settings_repository.create(
+                session,
+                guild_id=guild_id,
+                category_id=category_id,
+                support_channel_id=support_channel_id,
+                logs_channel_id=logs_channel_id,
+                settings_channel_id=settings_channel_id,
+                support_message_id=support_message_id,
+                is_enabled=True,
+            )
 
         return await self._settings_repository.update(session, existing, **fields)

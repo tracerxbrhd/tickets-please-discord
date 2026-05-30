@@ -7,6 +7,8 @@ import logging
 import hikari
 import miru
 
+from collections.abc import Sequence
+
 from bot.ui.embeds import (
     build_panel_error_embed,
     build_settings_panel_embed,
@@ -24,21 +26,18 @@ SUPPORT_MY_TICKETS_CUSTOM_ID = "tickets_please:support:my_tickets"
 TICKET_CLOSE_CUSTOM_ID = "tickets_please:ticket:close"
 
 
-def build_support_panel_components() -> list[hikari.api.ComponentBuilder]:
+def build_support_panel_components() -> Sequence[hikari.api.ComponentBuilder]:
     """Build component rows for the public support panel message."""
-
     return SupportPanelView().build()
 
 
-def build_ticket_thread_components() -> list[hikari.api.ComponentBuilder]:
+def build_ticket_thread_components() -> Sequence[hikari.api.ComponentBuilder]:
     """Build component rows for the first ticket thread message."""
-
     return TicketThreadView().build()
 
 
-def build_settings_panel_components() -> list[hikari.api.ComponentBuilder]:
+def build_settings_panel_components() -> Sequence[hikari.api.ComponentBuilder]:
     """Build component rows for the settings panel message."""
-
     return SettingsPanelView().build()
 
 

@@ -98,18 +98,25 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
             from bot.ui.views import build_ticket_thread_components
 
             try:
-                message_kwargs: dict[str, object] = {
-                    "embed": build_ticket_thread_embed(result.ticket),
-                    "components": build_ticket_thread_components(),
-                    "user_mentions": [result.ticket.user_id],
-                }
-                if result.support_role_ids:
-                    message_kwargs["content"] = " ".join(
-                        f"<@&{role_id}>" for role_id in result.support_role_ids
-                    )
-                    message_kwargs["role_mentions"] = result.support_role_ids
+                ticket_embed = build_ticket_thread_embed(result.ticket)
+                ticket_components = build_ticket_thread_components()
 
-                await runtime.bot.rest.create_message(result.ticket.thread_id, **message_kwargs)
+                if result.support_role_ids:
+                    await runtime.bot.rest.create_message(
+                        result.ticket.thread_id,
+                        content=" ".join(f"<@&{role_id}>" for role_id in result.support_role_ids),
+                        embed=ticket_embed,
+                        components=ticket_components,
+                        user_mentions=[result.ticket.user_id],
+                        role_mentions=result.support_role_ids,
+                    )
+                else:
+                    await runtime.bot.rest.create_message(
+                        result.ticket.thread_id,
+                        embed=ticket_embed,
+                        components=ticket_components,
+                        user_mentions=[result.ticket.user_id],
+                    )
             except (hikari.ForbiddenError, hikari.NotFoundError, hikari.BadRequestError):
                 LOGGER.exception(
                     "Failed to send first ticket message for ticket %s",

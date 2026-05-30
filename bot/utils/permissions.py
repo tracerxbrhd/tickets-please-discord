@@ -33,9 +33,13 @@ def format_permissions(permissions: hikari.Permissions) -> str:
 
     if permissions == hikari.Permissions.NONE:
         return "none"
-    return ", ".join(
-        permission.name.lower() for permission in hikari.Permissions if permission & permissions
-    )
+
+    names: list[str] = []
+    for permission in hikari.Permissions:
+        if permission & permissions:
+            names.append((permission.name or str(int(permission))).lower())
+
+    return ", ".join(names)
 
 
 def member_permissions(member: object) -> hikari.Permissions:

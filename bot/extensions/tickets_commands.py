@@ -26,12 +26,25 @@ async def _respond_ephemeral(
     content: str | None = None,
     embed: hikari.Embed | None = None,
 ) -> None:
-    kwargs: dict[str, object] = {"flags": hikari.MessageFlag.EPHEMERAL}
-    if content is not None:
-        kwargs["content"] = content
+    if content is not None and embed is not None:
+        await ctx.respond(
+            content,
+            embed=embed,
+            flags=hikari.MessageFlag.EPHEMERAL,
+        )
+        return
+
     if embed is not None:
-        kwargs["embed"] = embed
-    await ctx.respond(**kwargs)
+        await ctx.respond(
+            embed=embed,
+            flags=hikari.MessageFlag.EPHEMERAL,
+        )
+        return
+
+    await ctx.respond(
+        content or "",
+        flags=hikari.MessageFlag.EPHEMERAL,
+    )
 
 
 async def _defer_ephemeral(ctx: lightbulb.Context) -> None:

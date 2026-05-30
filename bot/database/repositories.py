@@ -75,10 +75,13 @@ class GuildSettingsRepository:
         return settings
 
     async def delete_by_guild_id(self, session: AsyncSession, guild_id: int) -> bool:
-        result = await session.execute(
-            delete(GuildSettings).where(GuildSettings.guild_id == guild_id)
-        )
-        return bool(result.rowcount)
+        settings = await self.get_by_guild_id(session, guild_id)
+        if settings is None:
+            return False
+
+        await session.delete(settings)
+        await session.flush()
+        return True
 
 
 class SupportRoleRepository:
