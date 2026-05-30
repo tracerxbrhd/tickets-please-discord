@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/Discord-Bot-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord Bot">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Ready">
   <img src="https://img.shields.io/badge/License-Proprietary-purple?style=flat-square" alt="Proprietary License">
+  <a href="https://top.gg/bot/1510222334814982254"><img src="https://top.gg/api/widget/servers/1510222334814982254.svg"></a>
 </p>
 
 # Tickets! Please
