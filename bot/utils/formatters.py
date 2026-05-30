@@ -44,10 +44,25 @@ def slugify_channel_name(value: str, *, fallback: str = "ticket", max_length: in
     return normalized or fallback
 
 
-def user_ticket_channel_name(user_id: int) -> str:
+def discord_account_name(user: object) -> str | None:
+    """Return a stable user-facing account name from a Hikari user-like object."""
+
+    for attribute_name in ("global_name", "username", "display_name"):
+        value = getattr(user, attribute_name, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def user_ticket_channel_name(account_name: str | None, *, user_id: int) -> str:
     """Build the current per-user ticket channel name."""
 
-    return f"ticket-{user_id}"
+    account_slug = slugify_channel_name(
+        account_name or "",
+        fallback=f"user-{user_id}",
+        max_length=70,
+    )
+    return f"ticket-{account_slug}"
 
 
 def ticket_thread_name(ticket_number: int, title: str) -> str:

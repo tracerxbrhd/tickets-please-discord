@@ -32,13 +32,13 @@ def build_support_panel_embed() -> hikari.Embed:
         hikari.Embed(
             title="Tickets! Please",
             description=(
-                "Создайте обращение в поддержку или посмотрите список своих обращений."
+                "Create a support ticket or review your existing tickets."
             ),
             color=BRAND_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Создать обращение", "Открывает форму нового обращения.", inline=True)
-        .add_field("Мои обращения", "Показывает ваши последние обращения.", inline=True)
+        .add_field("Create ticket", "Opens a new ticket form.", inline=True)
+        .add_field("My tickets", "Shows your recent tickets.", inline=True)
         .set_footer("Tickets! Please")
     )
 
@@ -53,24 +53,24 @@ def build_settings_panel_embed(
     return (
         hikari.Embed(
             title="Tickets! Please settings",
-            description="Базовая конфигурация тикет-системы для этого сервера.",
+            description="Base ticket-system configuration for this server.",
             color=BRAND_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Категория", channel_mention(settings.category_id), inline=True)
-        .add_field("Канал поддержки", channel_mention(settings.support_channel_id), inline=True)
-        .add_field("Канал логов", channel_mention(settings.logs_channel_id), inline=True)
-        .add_field("Канал настроек", channel_mention(settings.settings_channel_id), inline=True)
-        .add_field("Система", "enabled" if settings.is_enabled else "disabled", inline=True)
-        .add_field("Роли поддержки", _format_support_roles(support_roles), inline=True)
+        .add_field("Category", channel_mention(settings.category_id), inline=True)
+        .add_field("Support channel", channel_mention(settings.support_channel_id), inline=True)
+        .add_field("Logs channel", channel_mention(settings.logs_channel_id), inline=True)
+        .add_field("Settings channel", channel_mention(settings.settings_channel_id), inline=True)
+        .add_field("System", "enabled" if settings.is_enabled else "disabled", inline=True)
+        .add_field("Support roles", _format_support_roles(support_roles), inline=True)
         .add_field(
-            "Лимит открытых тикетов",
-            f"{MAX_OPEN_TICKETS_PER_USER} на пользователя",
+            "Open ticket limit",
+            f"{MAX_OPEN_TICKETS_PER_USER} per user",
             inline=True,
         )
-        .add_field("Режим вложений", "fallback: attach in ticket thread", inline=True)
-        .add_field("Формат каналов", "ticket-{user}", inline=True)
-        .add_field("Формат веток", "ticket-{number}", inline=True)
+        .add_field("Attachment mode", "fallback: attach in ticket thread", inline=True)
+        .add_field("Channel format", "ticket-{account-name}", inline=True)
+        .add_field("Thread format", "ticket-{number}", inline=True)
     )
 
 
@@ -78,8 +78,8 @@ def build_support_role_updated_embed(role_id: int) -> hikari.Embed:
     """Build an ephemeral settings update response."""
 
     return hikari.Embed(
-        title="Роль поддержки обновлена",
-        description=f"Новая роль поддержки: <@&{role_id}>.",
+        title="Support role updated",
+        description=f"New support role: <@&{role_id}>.",
         color=SUCCESS_COLOR,
         timestamp=datetime.now(UTC),
     )
@@ -104,18 +104,18 @@ def build_setup_summary_embed(result: SetupResult) -> hikari.Embed:
     return (
         hikari.Embed(
             title="Tickets! Please setup complete",
-            description="Базовая структура каналов создана или обновлена.",
+            description="Base channel structure was created or updated.",
             color=SUCCESS_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Категория", channel_mention(result.category_id), inline=True)
-        .add_field("Поддержка", channel_mention(result.support_channel_id), inline=True)
-        .add_field("Логи", channel_mention(result.logs_channel_id), inline=True)
-        .add_field("Настройки", channel_mention(result.settings_channel_id), inline=True)
-        .add_field("Создано", created, inline=False)
-        .add_field("Переиспользовано", reused, inline=False)
-        .add_field("Панель поддержки", support_message_url, inline=False)
-        .add_field("Панель настроек", settings_message_url, inline=False)
+        .add_field("Category", channel_mention(result.category_id), inline=True)
+        .add_field("Support", channel_mention(result.support_channel_id), inline=True)
+        .add_field("Logs", channel_mention(result.logs_channel_id), inline=True)
+        .add_field("Settings", channel_mention(result.settings_channel_id), inline=True)
+        .add_field("Created", created, inline=False)
+        .add_field("Reused", reused, inline=False)
+        .add_field("Support panel", support_message_url, inline=False)
+        .add_field("Settings panel", settings_message_url, inline=False)
     )
 
 
@@ -125,7 +125,7 @@ def build_status_embed(settings: GuildSettings | None) -> hikari.Embed:
     if settings is None:
         return hikari.Embed(
             title="Tickets! Please status",
-            description="Тикет-система еще не настроена. Запустите `/tickets-setup`.",
+            description="The ticket system is not configured yet. Run `/tickets-setup`.",
             color=WARNING_COLOR,
             timestamp=datetime.now(UTC),
         )
@@ -133,17 +133,17 @@ def build_status_embed(settings: GuildSettings | None) -> hikari.Embed:
     return (
         hikari.Embed(
             title="Tickets! Please status",
-            description="Текущая сохраненная конфигурация сервера.",
+            description="Current saved server configuration.",
             color=BRAND_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Система", "enabled" if settings.is_enabled else "disabled", inline=True)
-        .add_field("Категория", channel_mention(settings.category_id), inline=True)
-        .add_field("Канал поддержки", channel_mention(settings.support_channel_id), inline=True)
-        .add_field("Канал логов", channel_mention(settings.logs_channel_id), inline=True)
-        .add_field("Канал настроек", channel_mention(settings.settings_channel_id), inline=True)
-        .add_field("Создано", discord_timestamp(settings.created_at), inline=True)
-        .add_field("Обновлено", discord_timestamp(settings.updated_at), inline=True)
+        .add_field("System", "enabled" if settings.is_enabled else "disabled", inline=True)
+        .add_field("Category", channel_mention(settings.category_id), inline=True)
+        .add_field("Support channel", channel_mention(settings.support_channel_id), inline=True)
+        .add_field("Logs channel", channel_mention(settings.logs_channel_id), inline=True)
+        .add_field("Settings channel", channel_mention(settings.settings_channel_id), inline=True)
+        .add_field("Created", discord_timestamp(settings.created_at), inline=True)
+        .add_field("Updated", discord_timestamp(settings.updated_at), inline=True)
     )
 
 
@@ -151,9 +151,9 @@ def build_reset_embed(was_configured: bool) -> hikari.Embed:
     """Build reset command response."""
 
     description = (
-        "Сохраненная конфигурация удалена. Каналы Discord не удалялись."
+        "Saved configuration was removed. Discord channels were not deleted."
         if was_configured
-        else "Сохраненной конфигурации не было."
+        else "There was no saved configuration."
     )
     return hikari.Embed(
         title="Tickets! Please reset",
@@ -199,16 +199,16 @@ def build_ticket_thread_embed(ticket: Ticket) -> hikari.Embed:
 
     return (
         hikari.Embed(
-            title=f"Обращение #{ticket.ticket_number}: {ticket.title}",
+            title=f"Ticket #{ticket.ticket_number}: {ticket.title}",
             description=ticket.description,
             color=BRAND_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Статус", f"`{ticket.status.value}`", inline=True)
-        .add_field("Автор", f"<@{ticket.user_id}>", inline=True)
+        .add_field("Status", f"`{ticket.status.value}`", inline=True)
+        .add_field("Author", f"<@{ticket.user_id}>", inline=True)
         .add_field(
-            "Файлы",
-            "Если нужно, прикрепите файл следующим сообщением в этой ветке.",
+            "Files",
+            "If needed, attach files as the next message in this thread.",
             inline=False,
         )
         .set_footer("Tickets! Please")
@@ -220,17 +220,17 @@ def build_ticket_closed_thread_embed(ticket: Ticket) -> hikari.Embed:
 
     return (
         hikari.Embed(
-            title=f"Обращение #{ticket.ticket_number} закрыто",
+            title=f"Ticket #{ticket.ticket_number} closed",
             description=(
-                "Это обращение закрыто. Если нужна помощь по новой проблеме, "
-                "создайте новое обращение."
+                "This ticket is closed. If you need help with a new issue, "
+                "create a new ticket."
             ),
             color=WARNING_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Тема", ticket.title, inline=False)
-        .add_field("Закрыл", f"<@{ticket.closed_by_id}>", inline=True)
-        .add_field("Дата закрытия", discord_timestamp(ticket.closed_at), inline=True)
+        .add_field("Subject", ticket.title, inline=False)
+        .add_field("Closed by", f"<@{ticket.closed_by_id}>", inline=True)
+        .add_field("Closed at", discord_timestamp(ticket.closed_at), inline=True)
         .set_footer("Tickets! Please")
     )
 
@@ -241,13 +241,13 @@ def build_ticket_created_response_embed(ticket: Ticket, *, guild_id: int) -> hik
     thread_url = channel_jump_url(guild_id, ticket.thread_id)
     return (
         hikari.Embed(
-            title="Обращение создано",
-            description=f"Ваше обращение `#{ticket.ticket_number}` создано: {thread_url}",
+            title="Ticket created",
+            description=f"Your ticket `#{ticket.ticket_number}` was created: {thread_url}",
             color=SUCCESS_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Тема", ticket.title, inline=False)
-        .add_field("Статус", f"`{ticket.status.value}`", inline=True)
+        .add_field("Subject", ticket.title, inline=False)
+        .add_field("Status", f"`{ticket.status.value}`", inline=True)
     )
 
 
@@ -255,19 +255,19 @@ def build_ticket_closed_response_embed(ticket: Ticket, *, archived: bool) -> hik
     """Build the ephemeral response after a ticket is closed."""
 
     archive_note = (
-        "Ветка архивирована."
+        "Thread archived."
         if archived
-        else "Ветка закрыта в БД, но архивировать ее не удалось."
+        else "The ticket was closed in the database, but the thread could not be archived."
     )
     return (
         hikari.Embed(
-            title="Обращение закрыто",
-            description=f"Обращение `#{ticket.ticket_number}` закрыто. {archive_note}",
+            title="Ticket closed",
+            description=f"Ticket `#{ticket.ticket_number}` was closed. {archive_note}",
             color=WARNING_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("Тема", ticket.title, inline=False)
-        .add_field("Статус", f"`{ticket.status.value}`", inline=True)
+        .add_field("Subject", ticket.title, inline=False)
+        .add_field("Status", f"`{ticket.status.value}`", inline=True)
     )
 
 
@@ -278,7 +278,7 @@ def build_ticket_created_log_embed(ticket: Ticket, *, guild_id: int) -> hikari.E
     return (
         hikari.Embed(
             title="Ticket system event: ticket_created",
-            description=f"Создано обращение `#{ticket.ticket_number}`: {thread_url}",
+            description=f"Created ticket `#{ticket.ticket_number}`: {thread_url}",
             color=SUCCESS_COLOR,
             timestamp=datetime.now(UTC),
         )
@@ -296,7 +296,7 @@ def build_ticket_closed_log_embed(ticket: Ticket, *, guild_id: int) -> hikari.Em
     return (
         hikari.Embed(
             title="Ticket system event: ticket_closed",
-            description=f"Закрыто обращение `#{ticket.ticket_number}`: {thread_url}",
+            description=f"Closed ticket `#{ticket.ticket_number}`: {thread_url}",
             color=WARNING_COLOR,
             timestamp=datetime.now(UTC),
         )
@@ -317,14 +317,14 @@ def build_user_tickets_embed(
     """Build a compact ephemeral list of a user's tickets."""
 
     embed = hikari.Embed(
-        title="Мои обращения",
-        description="Открытые обращения и последние закрытые обращения.",
+        title="My tickets",
+        description="Open tickets and recently closed tickets.",
         color=BRAND_COLOR,
         timestamp=datetime.now(UTC),
     )
 
     if not open_tickets and not closed_tickets:
-        embed.description = "У вас пока нет обращений."
+        embed.description = "You do not have any tickets yet."
         return embed
 
     def format_ticket(ticket: Ticket, *, include_closed_at: bool) -> str:
@@ -333,29 +333,29 @@ def build_user_tickets_embed(
         title = _trim_embed_text(ticket.title, limit=60)
         lines = [
             f"`#{ticket.ticket_number}` [{title}]({thread_url})",
-            f"статус: `{ticket.status.value}`",
-            f"создано: {created_at}",
+            f"status: `{ticket.status.value}`",
+            f"created: {created_at}",
         ]
         if include_closed_at and ticket.closed_at is not None:
-            lines.append(f"закрыто: {discord_timestamp(ticket.closed_at)}")
+            lines.append(f"closed: {discord_timestamp(ticket.closed_at)}")
         return "\n".join(lines)
 
     embed.add_field(
-        "Открытые обращения",
+        "Open tickets",
         _ticket_list_field(
             open_tickets,
             formatter=lambda ticket: format_ticket(ticket, include_closed_at=False),
-            empty_text="Открытых обращений нет.",
+            empty_text="No open tickets.",
             max_items=5,
         ),
         inline=False,
     )
     embed.add_field(
-        "Последние закрытые",
+        "Recently closed",
         _ticket_list_field(
             closed_tickets,
             formatter=lambda ticket: format_ticket(ticket, include_closed_at=True),
-            empty_text="Закрытых обращений пока нет.",
+            empty_text="No closed tickets yet.",
             max_items=5,
         ),
         inline=False,
@@ -378,7 +378,7 @@ def _ticket_list_field(
     items = [formatter(ticket) for ticket in visible_tickets]
     hidden_count = len(tickets) - len(visible_tickets)
     if hidden_count > 0:
-        items.append(f"Еще {hidden_count} не показано.")
+        items.append(f"{hidden_count} more not shown.")
     return "\n\n".join(items)
 
 
@@ -390,5 +390,5 @@ def _trim_embed_text(value: str, *, limit: int) -> str:
 
 def _format_support_roles(support_roles: list[SupportRole]) -> str:
     if not support_roles:
-        return "не настроены"
+        return "not configured"
     return ", ".join(f"<@&{role.role_id}>" for role in support_roles)

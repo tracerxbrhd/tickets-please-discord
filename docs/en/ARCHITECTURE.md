@@ -1,5 +1,7 @@
 # Architecture
 
+**Language:** English | [Русский](../ru/ARCHITECTURE.md)
+
 ## Stack
 
 - Python 3.12+
@@ -21,27 +23,18 @@ bot/
 ├── logging.py           # process logging setup
 ├── runtime.py           # dependencies shared by Lightbulb extensions
 ├── database/            # SQLAlchemy models, async sessions, Alembic, repositories
-├── extensions/          # slash commands and event extensions
+├── extensions/          # slash commands and Discord event handlers
 ├── services/            # business logic independent from Discord adapters
 ├── ui/                  # embeds, views, modals, selects
 └── utils/               # shared helpers and domain exceptions
-
-web/
-├── main.py              # FastAPI app factory and uvicorn entrypoint
-├── security.py          # bearer-token admin auth
-├── schemas.py           # response models
-└── admin_service.py     # read-only dashboard read models
 ```
 
 Discord adapters live in `extensions/` and `ui/`. Business behavior lives in
 `services/`, with data access kept behind repository helpers in `database/`.
 
-The web admin package reuses database repositories without depending on hikari command
-handlers.
-
 ## Database
 
-The initial PostgreSQL schema is managed through Alembic:
+The PostgreSQL schema is managed through Alembic:
 
 - `guild_settings`: per-server channel/message IDs and enabled state.
 - `support_roles`: support role IDs per server.
@@ -52,4 +45,4 @@ The initial PostgreSQL schema is managed through Alembic:
 - `ticket_events`: append-only ticket history with structured JSON payloads.
 
 The bot checks database connectivity during startup and disposes the async engine on
-shutdown. Applying migrations remains an explicit operational command.
+shutdown.

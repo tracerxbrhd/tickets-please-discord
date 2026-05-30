@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 import hikari
@@ -59,6 +59,7 @@ class TicketCreationResult:
     user_channel_id: int | None = None
     thread_id: int | None = None
     user_channel_created: bool = False
+    support_role_ids: list[int] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -171,6 +172,7 @@ class TicketService:
         panel_channel_id: int,
         panel_message_id: int,
         user_id: int,
+        user_name: str | None,
         title: str,
         description: str,
     ) -> TicketCreationResult:
@@ -200,21 +202,25 @@ class TicketService:
                 validation=PanelValidationResult(
                     is_valid=False,
                     reason=(
-                        "Категория тикетов не настроена. "
-                        "Администратор должен повторить `/tickets-setup`."
+                        "The ticket category is not configured. "
+                        "An administrator must run `/tickets-setup` again."
                     ),
                     settings=settings,
                 )
             )
 
         bot_user = await rest.fetch_my_user()
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        support_role_ids = [role.role_id for role in support_roles]
         user_channel, channel_created = await self._get_or_create_user_channel(
             session,
             rest,
             guild_id=guild_id,
             user_id=user_id,
+            user_name=user_name,
             bot_user_id=int(bot_user.id),
             category_id=settings.category_id,
+            support_role_ids=support_role_ids,
         )
         ticket_number = await self._ticket_repository.next_ticket_number(session, guild_id)
         thread = await rest.create_thread(
@@ -251,6 +257,7 @@ class TicketService:
             user_channel_id=int(user_channel.id),
             thread_id=int(thread.id),
             user_channel_created=channel_created,
+            support_role_ids=support_role_ids,
         )
 
     async def validate_ticket_close(
@@ -274,14 +281,14 @@ class TicketService:
         if ticket is None:
             return TicketCloseValidationResult(
                 is_valid=False,
-                reason="Эта ветка не связана с сохраненным обращением.",
+                reason="This thread is not linked to a saved ticket.",
                 settings=settings,
             )
 
         if ticket.status == TicketStatus.CLOSED:
             return TicketCloseValidationResult(
                 is_valid=False,
-                reason="Это обращение уже закрыто и не может быть открыто повторно.",
+                reason="This ticket is already closed and cannot be reopened.",
                 ticket=ticket,
                 settings=settings,
             )
@@ -297,7 +304,7 @@ class TicketService:
         ):
             return TicketCloseValidationResult(
                 is_valid=False,
-                reason="У вас нет прав закрыть это обращение.",
+                reason="You do not have permission to close this ticket.",
                 ticket=ticket,
                 settings=settings,
             )
@@ -358,15 +365,15 @@ class TicketService:
             return PanelValidationResult(
                 is_valid=False,
                 reason=(
-                    "Тикет-система еще не настроена. "
-                    "Администратор должен выполнить `/tickets-setup`."
+                    "The ticket system is not configured yet. "
+                    "An administrator must run `/tickets-setup`."
                 ),
             )
 
         if not settings.is_enabled:
             return PanelValidationResult(
                 is_valid=False,
-                reason="Тикет-система сейчас выключена.",
+                reason="The ticket system is currently disabled.",
                 settings=settings,
             )
 
@@ -374,8 +381,8 @@ class TicketService:
             return PanelValidationResult(
                 is_valid=False,
                 reason=(
-                    "Эта панель поддержки устарела. "
-                    "Используйте актуальное сообщение в канале поддержки."
+                    "This support panel is stale. "
+                    "Use the current message in the support channel."
                 ),
                 settings=settings,
             )
@@ -399,8 +406,8 @@ class TicketService:
             return PanelValidationResult(
                 is_valid=False,
                 reason=(
-                    "У вас уже есть максимальное количество открытых обращений "
-                    f"({MAX_OPEN_TICKETS_PER_USER}). Закройте одно из них перед созданием нового."
+                    "You already have the maximum number of open tickets "
+                    f"({MAX_OPEN_TICKETS_PER_USER}). Close one before creating a new ticket."
                 ),
                 settings=settings,
             )
@@ -414,8 +421,10 @@ class TicketService:
         *,
         guild_id: int,
         user_id: int,
+        user_name: str | None,
         bot_user_id: int,
         category_id: int,
+        support_role_ids: list[int],
     ) -> tuple[hikari.GuildTextChannel, bool]:
         existing_record = await self._user_channel_repository.get(
             session,
@@ -427,16 +436,15 @@ class TicketService:
             if channel is not None:
                 return channel, False
 
-        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
         channel = await rest.create_guild_text_channel(
             guild_id,
-            name=user_ticket_channel_name(user_id),
+            name=user_ticket_channel_name(user_name, user_id=user_id),
             category=category_id,
             permission_overwrites=user_ticket_channel_overwrites(
                 guild_id=guild_id,
                 user_id=user_id,
                 bot_user_id=bot_user_id,
-                support_role_ids=[role.role_id for role in support_roles],
+                support_role_ids=support_role_ids,
             ),
         )
         await self._user_channel_repository.upsert(

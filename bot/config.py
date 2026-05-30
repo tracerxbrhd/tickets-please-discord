@@ -28,7 +28,6 @@ class Settings(BaseSettings):
         alias="ENVIRONMENT",
     )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
-    web_admin_token: SecretStr | None = Field(default=None, alias="WEB_ADMIN_TOKEN")
 
     @property
     def dev_guild_ids(self) -> list[int]:

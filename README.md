@@ -1,33 +1,34 @@
-![bot-banner](./assets/tickets-please-banner.png)
+![Tickets! Please banner](./assets/banner.png)
 
 # Tickets! Please
 
-Tickets! Please is a private Discord support ticket bot for servers that need a
-structured support workflow.
+**Language:** English | [Русский](README.ru.md)
 
-The bot creates a support panel, private user ticket channels, per-ticket threads,
-a settings panel for support roles, and a logs channel for operational events.
+Tickets! Please is a proprietary Discord support ticket bot for servers that need
+a structured support workflow.
 
-## Current Features
+The repository language and the product language are English. Bot UI localization
+will be handled later; the current repository documentation is available in English
+and Russian.
+
+## Features
 
 - `/tickets-setup`, `/tickets-status`, and `/tickets-reset` slash commands.
 - Persistent support panel with ticket creation and "my tickets" actions.
-- Ticket creation modal with per-user private channels and per-ticket threads.
+- Ticket creation modal with private user channels and per-ticket threads.
 - Ticket closure flow with confirmation, audit event, and thread archival.
 - Settings panel role selector for the support role.
 - PostgreSQL persistence for settings, roles, channels, tickets, attachments, and events.
-- Defensive handling for stale panels, missing channels, missing log access, and open
-  ticket limits.
+- Operational scripts for Windows/PowerShell and Ubuntu 24.04.
 
 ## Documentation
 
-Detailed documentation lives outside the README:
-
-- [Bot behavior](docs/BOT.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Operations](docs/OPERATIONS.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Web admin expansion notes](docs/WEB_ADMIN_EXPANSION.md)
+- [Documentation index](docs/README.md)
+- [Bot behavior](docs/en/BOT.md)
+- [Architecture](docs/en/ARCHITECTURE.md)
+- [Operations](docs/en/OPERATIONS.md)
+- [Roadmap](docs/en/ROADMAP.md)
+- [Runtime scripts](scripts/README.md)
 
 ## License
 

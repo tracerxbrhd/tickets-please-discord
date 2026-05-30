@@ -19,16 +19,15 @@ Commands:
   check       Check Docker, Compose, and .env state.
   init-env    Create .env from .env.example when .env is missing.
   build       Build Docker images.
-  start       Start db, run migrations, then start bot and admin.
+  start       Start db, run migrations, then start bot.
   stop        Stop and remove compose containers.
-  restart     Restart bot and admin containers.
-  rebuild     Build images, run migrations, recreate bot and admin.
+  restart     Restart bot container.
+  rebuild     Build images, run migrations, recreate bot.
   status      Show compose container status.
-  logs        Follow bot and admin logs, or one service when provided.
+  logs        Follow bot logs, or one service when provided.
   migrate     Run Alembic migrations.
   db          Start only PostgreSQL.
   bot         Start db, run migrations, then start only the bot.
-  admin       Start db, run migrations, then start only the admin API.
   backup-db   Create a PostgreSQL custom-format dump in ./backups.
 
 Examples:
@@ -124,7 +123,7 @@ case "$COMMAND" in
     require_env
     start_db
     run_migrations
-    compose up -d bot admin
+    compose up -d bot
     ;;
   stop)
     require_docker
@@ -133,7 +132,7 @@ case "$COMMAND" in
   restart)
     require_docker
     require_env
-    compose restart bot admin
+    compose restart bot
     ;;
   rebuild)
     require_docker
@@ -141,7 +140,7 @@ case "$COMMAND" in
     compose build
     start_db
     run_migrations
-    compose up -d --force-recreate bot admin
+    compose up -d --force-recreate bot
     ;;
   status)
     require_docker
@@ -152,7 +151,7 @@ case "$COMMAND" in
     if [[ -n "$SERVICE" ]]; then
       compose logs --tail "$TAIL" -f "$SERVICE"
     else
-      compose logs --tail "$TAIL" -f bot admin
+      compose logs --tail "$TAIL" -f bot
     fi
     ;;
   migrate)
@@ -171,13 +170,6 @@ case "$COMMAND" in
     start_db
     run_migrations
     compose up -d bot
-    ;;
-  admin)
-    require_docker
-    require_env
-    start_db
-    run_migrations
-    compose up -d admin
     ;;
   backup-db)
     require_docker

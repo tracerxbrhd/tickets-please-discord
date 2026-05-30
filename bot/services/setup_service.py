@@ -16,7 +16,7 @@ from bot.ui.views import build_settings_panel_components, build_support_panel_co
 from bot.utils.permissions import private_text_channel_overwrites
 
 CATEGORY_NAME = "Tickets! Please"
-SUPPORT_CHANNEL_NAME = "поддержка"
+SUPPORT_CHANNEL_NAME = "support"
 LOGS_CHANNEL_NAME = "tickets-logs"
 SETTINGS_CHANNEL_NAME = "tickets-settings"
 

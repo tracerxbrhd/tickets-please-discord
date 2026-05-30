@@ -52,7 +52,7 @@ class SupportPanelView(miru.View):
         guild_id = ctx.guild_id
         if guild_id is None:
             await ctx.respond(
-                embed=build_panel_error_embed("Эта панель работает только на сервере."),
+                embed=build_panel_error_embed("This panel only works in a server."),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
             return None
@@ -60,7 +60,7 @@ class SupportPanelView(miru.View):
         message = ctx.message
         if message is None:
             await ctx.respond(
-                embed=build_panel_error_embed("Не удалось определить сообщение панели."),
+                embed=build_panel_error_embed("Could not identify the panel message."),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
             return None
@@ -68,7 +68,7 @@ class SupportPanelView(miru.View):
         return int(guild_id), int(ctx.channel_id), int(message.id)
 
     @miru.button(
-        label="Создать обращение",
+        label="Create ticket",
         style=hikari.ButtonStyle.PRIMARY,
         custom_id=SUPPORT_CREATE_TICKET_CUSTOM_ID,
     )
@@ -100,7 +100,7 @@ class SupportPanelView(miru.View):
 
             if not prompt.validation.is_valid:
                 await ctx.respond(
-                    embed=build_panel_error_embed(prompt.validation.reason or "Панель недоступна."),
+                    embed=build_panel_error_embed(prompt.validation.reason or "Panel unavailable."),
                     flags=hikari.MessageFlag.EPHEMERAL,
                 )
                 return
@@ -116,13 +116,13 @@ class SupportPanelView(miru.View):
             LOGGER.exception("Failed to handle create-ticket button in guild %s", guild_id)
             await ctx.respond(
                 embed=build_panel_error_embed(
-                    "Не удалось обработать кнопку. Подробности записаны в логи бота."
+                    "Could not process this button. Details were written to bot logs."
                 ),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
 
     @miru.button(
-        label="Мои обращения",
+        label="My tickets",
         style=hikari.ButtonStyle.SECONDARY,
         custom_id=SUPPORT_MY_TICKETS_CUSTOM_ID,
     )
@@ -159,7 +159,7 @@ class SupportPanelView(miru.View):
             if not ticket_list.validation.is_valid:
                 await ctx.edit_response(
                     embed=build_panel_error_embed(
-                        ticket_list.validation.reason or "Панель недоступна."
+                        ticket_list.validation.reason or "Panel unavailable."
                     ),
                 )
                 return
@@ -175,7 +175,7 @@ class SupportPanelView(miru.View):
             LOGGER.exception("Failed to handle my-tickets button in guild %s", guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Не удалось получить список обращений. Подробности записаны в логи бота."
+                    "Could not get your ticket list. Details were written to bot logs."
                 ),
             )
 
@@ -190,14 +190,14 @@ class SettingsPanelView(miru.View):
         guild_id = ctx.guild_id
         if guild_id is None:
             await ctx.respond(
-                embed=build_panel_error_embed("Эта панель работает только на сервере."),
+                embed=build_panel_error_embed("This panel only works in a server."),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
             return None
 
         if ctx.message is None:
             await ctx.respond(
-                embed=build_panel_error_embed("Не удалось определить сообщение настроек."),
+                embed=build_panel_error_embed("Could not identify the settings message."),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
             return None
@@ -205,7 +205,7 @@ class SettingsPanelView(miru.View):
         return int(guild_id), int(ctx.channel_id), int(ctx.message.id)
 
     @miru.role_select(
-        placeholder="Выберите роль поддержки",
+        placeholder="Select support role",
         min_values=1,
         max_values=1,
         custom_id=SETTINGS_SUPPORT_ROLE_SELECT_CUSTOM_ID,
@@ -228,7 +228,7 @@ class SettingsPanelView(miru.View):
         selected_role = select.values[0] if select.values else None
         if selected_role is None:
             await ctx.edit_response(
-                embed=build_panel_error_embed("Выберите одну роль поддержки.")
+                embed=build_panel_error_embed("Select one support role.")
             )
             return
 
@@ -236,7 +236,7 @@ class SettingsPanelView(miru.View):
         if role_id == guild_id:
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Нельзя выбрать `@everyone` как роль поддержки."
+                    "`@everyone` cannot be selected as the support role."
                 )
             )
             return
@@ -244,7 +244,7 @@ class SettingsPanelView(miru.View):
         permissions = member_permissions(getattr(ctx, "member", None))
         if not permissions & (hikari.Permissions.ADMINISTRATOR | hikari.Permissions.MANAGE_GUILD):
             await ctx.edit_response(
-                embed=build_panel_error_embed("У вас нет прав изменять настройки тикетов.")
+                embed=build_panel_error_embed("You do not have permission to change ticket settings.")
             )
             return
 
@@ -260,7 +260,7 @@ class SettingsPanelView(miru.View):
                 if settings is None:
                     await ctx.edit_response(
                         embed=build_panel_error_embed(
-                            "Тикет-система еще не настроена. Выполните `/tickets-setup`."
+                            "The ticket system is not configured yet. Run `/tickets-setup`."
                         )
                     )
                     return
@@ -271,7 +271,7 @@ class SettingsPanelView(miru.View):
                 ):
                     await ctx.edit_response(
                         embed=build_panel_error_embed(
-                            "Эта панель настроек устарела. Используйте актуальное сообщение."
+                            "This settings panel is stale. Use the current message."
                         )
                     )
                     return
@@ -311,7 +311,7 @@ class SettingsPanelView(miru.View):
             LOGGER.exception("Failed to update support role in guild %s", guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Не удалось обновить роль поддержки. Подробности записаны в логи бота."
+                    "Could not update the support role. Details were written to bot logs."
                 )
             )
 
@@ -326,14 +326,14 @@ class TicketThreadView(miru.View):
         guild_id = ctx.guild_id
         if guild_id is None:
             await ctx.respond(
-                embed=build_panel_error_embed("Эта кнопка работает только на сервере."),
+                embed=build_panel_error_embed("This button only works in a server."),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
             return None
 
         if ctx.message is None:
             await ctx.respond(
-                embed=build_panel_error_embed("Не удалось определить сообщение тикета."),
+                embed=build_panel_error_embed("Could not identify the ticket message."),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
             return None
@@ -341,7 +341,7 @@ class TicketThreadView(miru.View):
         return int(guild_id), int(ctx.channel_id), int(ctx.message.id)
 
     @miru.button(
-        label="Закрыть обращение",
+        label="Close ticket",
         style=hikari.ButtonStyle.DANGER,
         custom_id=TICKET_CLOSE_CUSTOM_ID,
     )
@@ -375,7 +375,7 @@ class TicketThreadView(miru.View):
 
             if not validation.is_valid:
                 await ctx.respond(
-                    embed=build_panel_error_embed(validation.reason or "Обращение недоступно."),
+                    embed=build_panel_error_embed(validation.reason or "Ticket unavailable."),
                     flags=hikari.MessageFlag.EPHEMERAL,
                 )
                 return
@@ -391,7 +391,7 @@ class TicketThreadView(miru.View):
             LOGGER.exception("Failed to handle close-ticket button in guild %s", guild_id)
             await ctx.respond(
                 embed=build_panel_error_embed(
-                    "Не удалось обработать закрытие. Подробности записаны в логи бота."
+                    "Could not process ticket closure. Details were written to bot logs."
                 ),
                 flags=hikari.MessageFlag.EPHEMERAL,
             )

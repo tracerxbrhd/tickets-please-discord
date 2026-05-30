@@ -7,7 +7,6 @@ WORKDIR /app
 
 COPY pyproject.toml README.md LICENSE alembic.ini ./
 COPY bot ./bot
-COPY web ./web
 
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir .

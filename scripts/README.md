@@ -1,5 +1,7 @@
 # Runtime Scripts
 
+**Language:** English | [Русский](README.ru.md)
+
 The stage roadmap is paused. These scripts are operational helpers for local
 development and Ubuntu 24.04 deployment.
 
@@ -36,16 +38,15 @@ bash scripts/server.sh stop
 - `check`: validate Docker, Compose, and `.env` state.
 - `init-env`: create `.env` from `.env.example` when missing.
 - `build`: build all Docker images.
-- `start`: start `db`, run migrations, then start `bot` and `admin`.
+- `start`: start `db`, run migrations, then start `bot`.
 - `stop`: stop and remove compose containers.
-- `restart`: restart `bot` and `admin`.
-- `rebuild`: build, migrate, and recreate `bot` and `admin`.
+- `restart`: restart `bot`.
+- `rebuild`: build, migrate, and recreate `bot`.
 - `status`: show `docker compose ps`.
-- `logs [service] [tail]`: follow logs for `bot admin` or one service.
+- `logs [service] [tail]`: follow logs for `bot` or one service.
 - `migrate`: run Alembic migrations.
 - `db`: start only PostgreSQL.
 - `bot`: start only the bot after database and migrations.
-- `admin`: start only the web-admin API after database and migrations.
 - `backup-db`: write a PostgreSQL custom-format dump to `./backups`.
 
 Both dispatchers block startup when `.env` still contains `replace-with`

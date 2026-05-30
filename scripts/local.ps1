@@ -18,16 +18,15 @@ Commands:
   check       Check Docker, Compose, and .env state.
   init-env    Create .env from .env.example when .env is missing.
   build       Build Docker images.
-  start       Start db, run migrations, then start bot and admin.
+  start       Start db, run migrations, then start bot.
   stop        Stop and remove compose containers.
-  restart     Restart bot and admin containers.
-  rebuild     Build images, run migrations, recreate bot and admin.
+  restart     Restart bot container.
+  rebuild     Build images, run migrations, recreate bot.
   status      Show compose container status.
-  logs        Follow bot and admin logs, or one service when provided.
+  logs        Follow bot logs, or one service when provided.
   migrate     Run Alembic migrations.
   db          Start only PostgreSQL.
   bot         Start db, run migrations, then start only the bot.
-  admin       Start db, run migrations, then start only the admin API.
   backup-db   Create a PostgreSQL custom-format dump in ./backups.
 
 Examples:
@@ -127,7 +126,7 @@ switch ($normalizedCommand) {
         Require-Env
         Start-Db
         Invoke-Migrations
-        Invoke-Compose up -d bot admin
+        Invoke-Compose up -d bot
     }
     "stop" {
         Require-Docker
@@ -136,7 +135,7 @@ switch ($normalizedCommand) {
     "restart" {
         Require-Docker
         Require-Env
-        Invoke-Compose restart bot admin
+        Invoke-Compose restart bot
     }
     "rebuild" {
         Require-Docker
@@ -144,7 +143,7 @@ switch ($normalizedCommand) {
         Invoke-Compose build
         Start-Db
         Invoke-Migrations
-        Invoke-Compose up -d --force-recreate bot admin
+        Invoke-Compose up -d --force-recreate bot
     }
     "status" {
         Require-Docker
@@ -155,7 +154,7 @@ switch ($normalizedCommand) {
         if ($Service) {
             Invoke-Compose logs --tail $Tail -f $Service
         } else {
-            Invoke-Compose logs --tail $Tail -f bot admin
+            Invoke-Compose logs --tail $Tail -f bot
         }
     }
     "migrate" {
@@ -174,13 +173,6 @@ switch ($normalizedCommand) {
         Start-Db
         Invoke-Migrations
         Invoke-Compose up -d bot
-    }
-    "admin" {
-        Require-Docker
-        Require-Env
-        Start-Db
-        Invoke-Migrations
-        Invoke-Compose up -d admin
     }
     "backup-db" {
         Require-Docker

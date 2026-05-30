@@ -36,10 +36,6 @@ class GuildSettingsRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_all(self, session: AsyncSession) -> list[GuildSettings]:
-        result = await session.execute(select(GuildSettings).order_by(GuildSettings.guild_id.asc()))
-        return list(result.scalars())
-
     async def create(
         self,
         session: AsyncSession,
@@ -280,34 +276,6 @@ class TicketRepository:
             .limit(limit)
         )
         return list(result.scalars())
-
-    async def list_recent_for_guild(
-        self,
-        session: AsyncSession,
-        *,
-        guild_id: int,
-        limit: int = 20,
-    ) -> list[Ticket]:
-        result = await session.execute(
-            select(Ticket)
-            .where(Ticket.guild_id == guild_id)
-            .order_by(Ticket.created_at.desc())
-            .limit(limit)
-        )
-        return list(result.scalars())
-
-    async def count_by_status_for_guild(
-        self,
-        session: AsyncSession,
-        *,
-        guild_id: int,
-    ) -> dict[TicketStatus, int]:
-        result = await session.execute(
-            select(Ticket.status, func.count(Ticket.id))
-            .where(Ticket.guild_id == guild_id)
-            .group_by(Ticket.status)
-        )
-        return {status: int(count) for status, count in result.all()}
 
     async def count_open_for_user(
         self,

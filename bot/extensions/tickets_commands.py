@@ -41,7 +41,7 @@ async def _defer_ephemeral(ctx: lightbulb.Context) -> None:
 async def _get_allowed_guild_id(ctx: lightbulb.Context) -> int | None:
     guild_id = ctx.guild_id
     if guild_id is None:
-        await _respond_ephemeral(ctx, content="Эта команда доступна только на сервере.")
+        await _respond_ephemeral(ctx, content="This command is only available in a server.")
         return None
 
     member = ctx.member
@@ -53,8 +53,8 @@ async def _get_allowed_guild_id(ctx: lightbulb.Context) -> int | None:
         await _respond_ephemeral(
             ctx,
             content=(
-                "Недостаточно прав для управления тикет-системой. "
-                f"Не хватает: {format_permissions(user_missing)}."
+                "You do not have enough permissions to manage the ticket system. "
+                f"Missing: {format_permissions(user_missing)}."
             ),
         )
         return None
@@ -67,8 +67,8 @@ async def _get_allowed_guild_id(ctx: lightbulb.Context) -> int | None:
         await _respond_ephemeral(
             ctx,
             content=(
-                "Боту не хватает прав для настройки каналов. "
-                f"Не хватает: {format_permissions(bot_missing)}."
+                "The bot lacks permissions to configure channels. "
+                f"Missing: {format_permissions(bot_missing)}."
             ),
         )
         return None
@@ -114,21 +114,21 @@ class TicketsSetup(
             await _respond_ephemeral(
                 ctx,
                 content=(
-                    "Discord отклонил действие из-за прав доступа. "
-                    "Проверьте роль бота и разрешения на управление каналами."
+                    "Discord denied the action because of permissions. "
+                    "Check the bot role and channel management permissions."
                 ),
             )
         except hikari.BadRequestError:
             LOGGER.exception("Discord rejected setup payload in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Discord отклонил запрос настройки. Подробности записаны в логи бота.",
+                content="Discord rejected the setup request. Details were written to bot logs.",
             )
         except Exception:
             LOGGER.exception("Unexpected setup error in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Не удалось выполнить настройку. Подробности записаны в логи бота.",
+                content="Could not complete setup. Details were written to bot logs.",
             )
 
 
@@ -155,7 +155,7 @@ class TicketsStatus(
             LOGGER.exception("Unexpected status error in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Не удалось получить статус. Подробности записаны в логи бота.",
+                content="Could not get status. Details were written to bot logs.",
             )
 
 
@@ -198,5 +198,5 @@ class TicketsReset(
             LOGGER.exception("Unexpected reset error in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Не удалось сбросить настройки. Подробности записаны в логи бота.",
+                content="Could not reset settings. Details were written to bot logs.",
             )

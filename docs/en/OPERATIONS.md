@@ -1,5 +1,7 @@
 # Operations
 
+**Language:** English | [Русский](../ru/OPERATIONS.md)
+
 ## Configuration
 
 Copy the example file and fill in the Discord token:
@@ -15,13 +17,12 @@ Variables:
 - `DEV_GUILD_IDS`: optional comma-separated guild IDs for development command rollout.
 - `ENVIRONMENT`: `local`, `development`, `staging`, or `production`.
 - `LOG_LEVEL`: Python logging level, for example `INFO` or `DEBUG`.
-- `WEB_ADMIN_TOKEN`: bearer token required by the web-admin API.
 
-## Run With Docker
+## Runtime Scripts
 
-The preferred operational entrypoints are the scripts in `scripts/`.
+The preferred operational entrypoints are in `scripts/`.
 
-On Windows/PowerShell:
+Windows/PowerShell:
 
 ```powershell
 ./scripts/local.ps1 start
@@ -29,7 +30,7 @@ On Windows/PowerShell:
 ./scripts/local.ps1 stop
 ```
 
-On Ubuntu 24.04:
+Ubuntu 24.04:
 
 ```bash
 bash scripts/server.sh start
@@ -37,13 +38,13 @@ bash scripts/server.sh logs bot 200
 bash scripts/server.sh stop
 ```
 
-For a fresh Ubuntu 24.04 host, install Docker and the Compose plugin with:
+Install Docker and the Compose plugin on a fresh Ubuntu 24.04 host:
 
 ```bash
 sudo bash scripts/ubuntu-install-docker.sh
 ```
 
-The manual Docker commands are:
+## Manual Docker Commands
 
 ```bash
 docker compose --profile tools run --rm migrate
@@ -51,16 +52,9 @@ docker compose up --build
 ```
 
 The migration command applies the current Alembic schema to PostgreSQL. The Compose
-stack then starts PostgreSQL, the bot, and the web-admin API. The bot image uses
-`python -m bot.main`; the admin service runs `uvicorn web.main:app`.
+stack then starts PostgreSQL and the bot.
 
-To run only the web-admin API after the database is healthy:
-
-```bash
-docker compose up --build admin
-```
-
-## Run Locally
+## Local Python Run
 
 ```bash
 python -m venv .venv
@@ -76,33 +70,20 @@ For local execution outside Docker, use a local database URL such as:
 DATABASE_URL=postgresql+asyncpg://tickets:tickets@localhost:5432/tickets
 ```
 
-Run the web-admin API locally with:
-
-```bash
-uvicorn web.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Admin API requests need:
-
-```http
-Authorization: Bearer <WEB_ADMIN_TOKEN>
-```
-
 ## Script Commands
 
 - `check`: validate Docker, Compose, and `.env` state.
 - `init-env`: create `.env` from `.env.example` when missing.
 - `build`: build all Docker images.
-- `start`: start `db`, run migrations, then start `bot` and `admin`.
+- `start`: start `db`, run migrations, then start `bot`.
 - `stop`: stop and remove compose containers.
-- `restart`: restart `bot` and `admin`.
-- `rebuild`: build, migrate, and recreate `bot` and `admin`.
+- `restart`: restart `bot`.
+- `rebuild`: build, migrate, and recreate `bot`.
 - `status`: show `docker compose ps`.
-- `logs [service] [tail]`: follow logs for `bot admin` or one service.
+- `logs [service] [tail]`: follow logs for `bot` or one service.
 - `migrate`: run Alembic migrations.
 - `db`: start only PostgreSQL.
 - `bot`: start only the bot after database and migrations.
-- `admin`: start only the web-admin API after database and migrations.
 - `backup-db`: write a PostgreSQL custom-format dump to `./backups`.
 
 ## Required Discord Permissions
@@ -118,15 +99,3 @@ The bot needs permissions to:
 
 `/tickets-setup`, `/tickets-status`, and `/tickets-reset` require the invoking user
 to have `Manage Server`.
-
-## Hardening Behavior
-
-The bot handles common operational drift defensively:
-
-- stale support/settings panel messages are recreated by `/tickets-setup`;
-- missing saved channels are recreated when setup runs again;
-- missing or inaccessible per-user ticket channels are replaced on the next ticket
-  creation for that user;
-- failed log-channel writes do not fail the user-facing command or interaction;
-- rejected permission overwrite updates are logged and do not roll back the saved
-  support-role configuration.
