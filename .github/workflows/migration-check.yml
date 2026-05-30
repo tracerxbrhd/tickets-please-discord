@@ -1,0 +1,55 @@
+name: Migration Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    name: Run Alembic migrations
+    runs-on: ubuntu-latest
+
+    env:
+      DISCORD_TOKEN: fake-token-for-ci
+      DATABASE_URL: postgresql+asyncpg://tickets:tickets@localhost:5432/tickets
+      DEV_GUILD_IDS: ""
+      ENVIRONMENT: testing
+      LOG_LEVEL: INFO
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: tickets
+          POSTGRES_USER: tickets
+          POSTGRES_PASSWORD: tickets
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tickets -d tickets"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run migrations
+        run: alembic upgrade head
