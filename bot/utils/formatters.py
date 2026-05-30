@@ -45,12 +45,12 @@ def slugify_channel_name(value: str, *, fallback: str = "ticket", max_length: in
 
 
 def discord_account_name(user: object) -> str | None:
-    """Return a stable user-facing account name from a Hikari user-like object."""
+    """Return the Discord account username, not server nickname or display name."""
 
-    for attribute_name in ("global_name", "username", "display_name"):
-        value = getattr(user, attribute_name, None)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+    value = getattr(user, "username", None)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+
     return None
 
 
