@@ -1,18 +1,10 @@
 ![Tickets! Please banner](./assets/banner.png)
 
 <p align="center">
-  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml">
-    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml/badge.svg" alt="CI">
-  </a>
-  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/docker-build.yml">
-    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/docker-build.yml/badge.svg" alt="Docker Build">
-  </a>
-  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml">
-    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml/badge.svg" alt="Migration Check">
-  </a>
-  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml">
-    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
-  </a>
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml"><img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/docker-build.yml"><img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/docker-build.yml/badge.svg" alt="Docker Build"></a>
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml"><img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml/badge.svg" alt="Migration Check"></a>
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml"><img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
 </p>
 
 <p align="center">
