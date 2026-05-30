@@ -1,5 +1,28 @@
 ![Tickets! Please banner](./assets/banner.png)
 
+<p align="center">
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml">
+    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/docker-build.yml">
+    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/docker-build.yml/badge.svg" alt="Docker Build">
+  </a>
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml">
+    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml/badge.svg" alt="Migration Check">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12+-blue?style=flat-square&logo=python" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/Discord-Bot-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord Bot">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Ready">
+  <img src="https://img.shields.io/badge/License-Proprietary-purple?style=flat-square" alt="Proprietary License">
+</p>
+
+<a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml">
+  <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
+</a>
+
 # Tickets! Please
 
 **Язык:** [English](README.md) | Русский
