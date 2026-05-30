@@ -1,4 +1,4 @@
-![Tickets! Please banner](./assets/icon.png)
+![Tickets! Please banner](./assets/banner.png)
 
 <p align="center">
   <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml"><img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
