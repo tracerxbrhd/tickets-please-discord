@@ -1,4 +1,4 @@
-![bot-banner](./assets/ticket-please-banner.png)
+![bot-banner](./assets/tickets-please-banner.png)
 
 # Tickets! Please
 
