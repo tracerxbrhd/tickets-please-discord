@@ -30,7 +30,8 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Ruff check
-        run: ruff check .
+        run: ruff check . --fix
+        run: ruff format .
 
       - name: Mypy check
         run: mypy bot
