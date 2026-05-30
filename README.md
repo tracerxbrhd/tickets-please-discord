@@ -6,6 +6,7 @@
   <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml"><img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml/badge.svg" alt="Migration Check"></a>
   <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml"><img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
 </p>
+<a href="https://top.gg/bot/1510222334814982254"><img src="https://top.gg/api/widget/servers/1510222334814982254.svg"></a>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12+-blue?style=flat-square&logo=python" alt="Python 3.12+">
