@@ -18,6 +18,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create CI env file
+        run: |
+          cat > .env <<'EOF'
+          DISCORD_TOKEN=fake-token-for-ci
+          DATABASE_URL=postgresql+asyncpg://tickets:tickets@db:5432/tickets
+          DEV_GUILD_IDS=
+          ENVIRONMENT=testing
+          LOG_LEVEL=INFO
+          EOF
+
       - name: Validate compose file
         run: docker compose config
 

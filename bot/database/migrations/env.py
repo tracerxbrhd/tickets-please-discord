@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-from bot.database.base import Base  # noqa: E402
 from bot.database import models  # noqa: E402,F401
+from bot.database.base import Base  # noqa: E402
 
 config = context.config
 

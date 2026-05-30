@@ -8,8 +8,8 @@ import hikari
 import miru
 
 from bot.ui.embeds import (
-    build_settings_panel_embed,
     build_panel_error_embed,
+    build_settings_panel_embed,
     build_support_role_updated_embed,
     build_user_tickets_embed,
 )
@@ -244,7 +244,9 @@ class SettingsPanelView(miru.View):
         permissions = member_permissions(getattr(ctx, "member", None))
         if not permissions & (hikari.Permissions.ADMINISTRATOR | hikari.Permissions.MANAGE_GUILD):
             await ctx.edit_response(
-                embed=build_panel_error_embed("You do not have permission to change ticket settings.")
+                embed=build_panel_error_embed(
+                    "You do not have permission to change ticket settings."
+                )
             )
             return
 
