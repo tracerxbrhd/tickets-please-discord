@@ -1,3 +1,5 @@
+![bot-banner](./assets/ticket-please-banner.png)
+
 # Tickets! Please
 
 Tickets! Please is a private Discord support ticket bot for servers that need a
