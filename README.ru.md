@@ -1,4 +1,4 @@
-![Tickets! Please banner](./assets/banner.png)
+![Tickets! Please banner](./assets/icon.png)
 
 <p align="center">
   <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/ci.yml">
@@ -10,6 +10,9 @@
   <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml">
     <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/migration-check.yml/badge.svg" alt="Migration Check">
   </a>
+  <a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml">
+    <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
+  </a>
 </p>
 
 <p align="center">
@@ -18,10 +21,6 @@
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Ready">
   <img src="https://img.shields.io/badge/License-Proprietary-purple?style=flat-square" alt="Proprietary License">
 </p>
-
-<a href="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml">
-  <img src="https://github.com/tracerxbrhd/tickets-please-discord/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
-</a>
 
 # Tickets! Please
 
