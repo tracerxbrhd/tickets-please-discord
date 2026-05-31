@@ -135,6 +135,7 @@ switch ($normalizedCommand) {
     "restart" {
         Require-Docker
         Require-Env
+        Start-Db
         Invoke-Compose restart bot
     }
     "rebuild" {

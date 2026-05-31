@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import hikari
@@ -57,9 +58,6 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
 
     @bot.listen(hikari.StartingEvent)
     async def prepare_services(_: hikari.StartingEvent) -> None:
-        LOGGER.info("Checking database connection")
-        await database.check_connection()
-        LOGGER.info("Database connection is available")
         await client.load_extensions("bot.extensions.tickets_commands")
 
     @bot.listen(hikari.StartedEvent)
@@ -81,6 +79,18 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
     return bot
 
 
+async def wait_for_dependencies(settings: Settings) -> None:
+    """Wait for external services before opening the Discord gateway."""
+
+    database = Database(str(settings.database_url))
+    try:
+        LOGGER.info("Checking database connection")
+        await database.wait_until_ready()
+        LOGGER.info("Database connection is available")
+    finally:
+        await database.dispose()
+
+
 def main() -> None:
     """Run the bot process."""
 
@@ -88,6 +98,7 @@ def main() -> None:
     configure_logging(settings.log_level)
 
     LOGGER.info("Starting Tickets! Please bot in %s environment", settings.environment)
+    asyncio.run(wait_for_dependencies(settings))
     bot = create_bot(settings)
     bot.run()
 

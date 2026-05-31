@@ -7,6 +7,7 @@ import logging
 import hikari
 
 from bot.database.models import Ticket
+from bot.i18n import DEFAULT_LOCALE
 from bot.ui.embeds import (
     build_log_embed,
     build_ticket_closed_log_embed,
@@ -56,6 +57,7 @@ class LoggingService:
         logs_channel_id: int | None,
         ticket: Ticket,
         guild_id: int,
+        locale: str = DEFAULT_LOCALE,
     ) -> None:
         """Send a ticket-created log event when a logs channel is available."""
 
@@ -65,7 +67,11 @@ class LoggingService:
         try:
             await rest.create_message(
                 logs_channel_id,
-                embed=build_ticket_created_log_embed(ticket, guild_id=guild_id),
+                embed=build_ticket_created_log_embed(
+                    ticket,
+                    guild_id=guild_id,
+                    locale=locale,
+                ),
             )
         except hikari.NotFoundError:
             LOGGER.warning("Configured logs channel %s was not found", logs_channel_id)
@@ -81,6 +87,7 @@ class LoggingService:
         logs_channel_id: int | None,
         ticket: Ticket,
         guild_id: int,
+        locale: str = DEFAULT_LOCALE,
     ) -> None:
         """Send a ticket-closed log event when a logs channel is available."""
 
@@ -90,7 +97,11 @@ class LoggingService:
         try:
             await rest.create_message(
                 logs_channel_id,
-                embed=build_ticket_closed_log_embed(ticket, guild_id=guild_id),
+                embed=build_ticket_closed_log_embed(
+                    ticket,
+                    guild_id=guild_id,
+                    locale=locale,
+                ),
             )
         except hikari.NotFoundError:
             LOGGER.warning("Configured logs channel %s was not found", logs_channel_id)

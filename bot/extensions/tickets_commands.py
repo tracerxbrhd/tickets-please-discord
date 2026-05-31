@@ -7,6 +7,7 @@ import logging
 import hikari
 import lightbulb
 
+from bot.i18n import DEFAULT_LOCALE, t
 from bot.runtime import get_runtime
 from bot.ui.embeds import build_reset_embed, build_setup_summary_embed, build_status_embed
 from bot.utils.permissions import (
@@ -54,7 +55,7 @@ async def _defer_ephemeral(ctx: lightbulb.Context) -> None:
 async def _get_allowed_guild_id(ctx: lightbulb.Context) -> int | None:
     guild_id = ctx.guild_id
     if guild_id is None:
-        await _respond_ephemeral(ctx, content="This command is only available in a server.")
+        await _respond_ephemeral(ctx, content=t(DEFAULT_LOCALE, "errors.command_server_only"))
         return None
 
     member = ctx.member
@@ -66,8 +67,11 @@ async def _get_allowed_guild_id(ctx: lightbulb.Context) -> int | None:
         await _respond_ephemeral(
             ctx,
             content=(
-                "You do not have enough permissions to manage the ticket system. "
-                f"Missing: {format_permissions(user_missing)}."
+                t(
+                    DEFAULT_LOCALE,
+                    "errors.missing_user_permissions",
+                    permissions=format_permissions(user_missing),
+                )
             ),
         )
         return None
@@ -80,8 +84,11 @@ async def _get_allowed_guild_id(ctx: lightbulb.Context) -> int | None:
         await _respond_ephemeral(
             ctx,
             content=(
-                "The bot lacks permissions to configure channels. "
-                f"Missing: {format_permissions(bot_missing)}."
+                t(
+                    DEFAULT_LOCALE,
+                    "errors.missing_bot_permissions",
+                    permissions=format_permissions(bot_missing),
+                )
             ),
         )
         return None
@@ -127,21 +134,20 @@ class TicketsSetup(
             await _respond_ephemeral(
                 ctx,
                 content=(
-                    "Discord denied the action because of permissions. "
-                    "Check the bot role and channel management permissions."
+                    t(DEFAULT_LOCALE, "errors.setup_forbidden")
                 ),
             )
         except hikari.BadRequestError:
             LOGGER.exception("Discord rejected setup payload in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Discord rejected the setup request. Details were written to bot logs.",
+                content=t(DEFAULT_LOCALE, "errors.setup_rejected"),
             )
         except Exception:
             LOGGER.exception("Unexpected setup error in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Could not complete setup. Details were written to bot logs.",
+                content=t(DEFAULT_LOCALE, "errors.setup_failed"),
             )
 
 
@@ -168,7 +174,7 @@ class TicketsStatus(
             LOGGER.exception("Unexpected status error in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Could not get status. Details were written to bot logs.",
+                content=t(DEFAULT_LOCALE, "errors.status_failed"),
             )
 
 
@@ -206,10 +212,13 @@ class TicketsReset(
                     "Discord channels were not deleted."
                 ),
             )
-            await _respond_ephemeral(ctx, embed=build_reset_embed(result.was_configured))
+            await _respond_ephemeral(
+                ctx,
+                embed=build_reset_embed(result.was_configured, locale=result.locale),
+            )
         except Exception:
             LOGGER.exception("Unexpected reset error in guild %s", guild_id)
             await _respond_ephemeral(
                 ctx,
-                content="Could not reset settings. Details were written to bot logs.",
+                content=t(DEFAULT_LOCALE, "errors.reset_failed"),
             )

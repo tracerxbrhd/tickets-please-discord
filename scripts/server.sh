@@ -132,6 +132,7 @@ case "$COMMAND" in
   restart)
     require_docker
     require_env
+    start_db
     compose restart bot
     ;;
   rebuild)

@@ -87,6 +87,7 @@ class GuildSettings(TimestampMixin, Base):
     settings_channel_id: Mapped[int | None] = mapped_column(BigInteger)
     support_message_id: Mapped[int | None] = mapped_column(BigInteger)
     settings_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    locale: Mapped[str] = mapped_column(String(12), default="en", server_default="en")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
 
 

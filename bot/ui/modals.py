@@ -8,6 +8,7 @@ import hikari
 import miru
 
 from bot.database.models import Ticket
+from bot.i18n import DEFAULT_LOCALE, normalize_locale, t
 from bot.ui.embeds import (
     build_panel_error_embed,
     build_ticket_closed_response_embed,
@@ -46,11 +47,21 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
         guild_id: int,
         panel_channel_id: int,
         panel_message_id: int,
+        locale: str = DEFAULT_LOCALE,
     ) -> None:
         super().__init__(timeout=300)
         self._guild_id = guild_id
         self._panel_channel_id = panel_channel_id
         self._panel_message_id = panel_message_id
+        self._locale = normalize_locale(locale)
+        self.title = t(self._locale, "modals.create_title")
+        self.subject.label = t(self._locale, "modals.ticket_subject")
+        self.subject.placeholder = t(self._locale, "modals.ticket_subject_placeholder")
+        self.description.label = t(self._locale, "modals.problem_description")
+        self.description.placeholder = t(
+            self._locale,
+            "modals.problem_description_placeholder",
+        )
 
     async def callback(self, ctx: miru.ModalContext) -> None:
         """Create the ticket after the user submits the modal."""
@@ -65,7 +76,7 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
         if len(title) < 3 or len(description) < 10:
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Please provide a more detailed subject and description."
+                    t(self._locale, "modals.too_short")
                 )
             )
             return
@@ -90,7 +101,7 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
             if not result.validation.is_valid or result.ticket is None:
                 await ctx.edit_response(
                     embed=build_panel_error_embed(
-                        result.validation.reason or "Could not create the ticket."
+                        result.validation.reason or t(self._locale, "modals.create_failed")
                     )
                 )
                 return
@@ -98,8 +109,13 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
             from bot.ui.views import build_ticket_thread_components
 
             try:
-                ticket_embed = build_ticket_thread_embed(result.ticket)
-                ticket_components = build_ticket_thread_components()
+                locale = (
+                    result.validation.settings.locale
+                    if result.validation.settings
+                    else self._locale
+                )
+                ticket_embed = build_ticket_thread_embed(result.ticket, locale=locale)
+                ticket_components = build_ticket_thread_components(locale)
 
                 if result.support_role_ids:
                     await runtime.bot.rest.create_message(
@@ -124,7 +140,7 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                 )
                 await ctx.edit_response(
                     embed=build_panel_error_embed(
-                        "The ticket was created, but the bot could not send the thread message."
+                        t(self._locale, "modals.thread_message_failed")
                     )
                 )
                 return
@@ -136,6 +152,9 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                 else None,
                 ticket=result.ticket,
                 guild_id=self._guild_id,
+                locale=result.validation.settings.locale
+                if result.validation.settings
+                else self._locale,
             )
             if result.user_channel_created:
                 await runtime.logging_service.send_system_event(
@@ -146,7 +165,7 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                     event_type="user_channel_created",
                     actor_id=int(ctx.user.id),
                     description=(
-                        "Created private ticket channel "
+                    "Created private ticket channel "
                         f"<#{result.user_channel_id}> for <@{ctx.user.id}>."
                     ),
                 )
@@ -154,27 +173,30 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                 embed=build_ticket_created_response_embed(
                     result.ticket,
                     guild_id=self._guild_id,
+                    locale=result.validation.settings.locale
+                    if result.validation.settings
+                    else self._locale,
                 )
             )
         except hikari.ForbiddenError:
             LOGGER.exception("Discord denied ticket creation in guild %s", self._guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "The bot lacks permissions to create the ticket channel or thread."
+                    t(self._locale, "modals.create_forbidden")
                 )
             )
         except hikari.BadRequestError:
             LOGGER.exception("Discord rejected ticket creation in guild %s", self._guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Discord rejected ticket creation. Details were written to bot logs."
+                    t(self._locale, "modals.create_rejected")
                 )
             )
         except Exception:
             LOGGER.exception("Unexpected ticket creation error in guild %s", self._guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Could not create the ticket. Details were written to bot logs."
+                    t(self._locale, "modals.create_unexpected")
                 )
             )
 
@@ -196,11 +218,16 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
         guild_id: int,
         thread_id: int,
         ticket_message_id: int,
+        locale: str = DEFAULT_LOCALE,
     ) -> None:
         super().__init__(timeout=120)
         self._guild_id = guild_id
         self._thread_id = thread_id
         self._ticket_message_id = ticket_message_id
+        self._locale = normalize_locale(locale)
+        self.title = t(self._locale, "modals.close_title")
+        self.confirmation.label = t(self._locale, "modals.confirmation")
+        self.confirmation.placeholder = t(self._locale, "modals.confirmation_placeholder")
 
     async def callback(self, ctx: miru.ModalContext) -> None:
         """Close a ticket after explicit user confirmation."""
@@ -212,7 +239,7 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
 
         if str(self.confirmation.value or "").strip().casefold() not in {"закрыть", "close"}:
             await ctx.edit_response(
-                embed=build_panel_error_embed("Closure cancelled: confirmation did not match.")
+                embed=build_panel_error_embed(t(self._locale, "modals.confirmation_mismatch"))
             )
             return
 
@@ -234,13 +261,18 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
             if not result.validation.is_valid or result.ticket is None:
                 await ctx.edit_response(
                     embed=build_panel_error_embed(
-                        result.validation.reason or "Could not close the ticket."
+                        result.validation.reason or t(self._locale, "modals.close_failed")
                     )
                 )
                 return
 
             await self._remove_close_button(runtime.bot.rest, result.ticket)
-            await self._send_closed_thread_message(runtime.bot.rest, result.ticket)
+            locale = (
+                result.validation.settings.locale
+                if result.validation.settings
+                else self._locale
+            )
+            await self._send_closed_thread_message(runtime.bot.rest, result.ticket, locale=locale)
             archived = await self._archive_thread(runtime.bot.rest, result.ticket.thread_id)
 
             await runtime.logging_service.send_ticket_closed(
@@ -250,29 +282,34 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
                 else None,
                 ticket=result.ticket,
                 guild_id=self._guild_id,
+                locale=locale,
             )
             await ctx.edit_response(
-                embed=build_ticket_closed_response_embed(result.ticket, archived=archived)
+                embed=build_ticket_closed_response_embed(
+                    result.ticket,
+                    archived=archived,
+                    locale=locale,
+                )
             )
         except hikari.ForbiddenError:
             LOGGER.exception("Discord denied ticket closure in guild %s", self._guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "The bot lacks permissions to close or archive the ticket."
+                    t(self._locale, "modals.close_forbidden")
                 )
             )
         except hikari.BadRequestError:
             LOGGER.exception("Discord rejected ticket closure in guild %s", self._guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Discord rejected ticket closure. Details were written to bot logs."
+                    t(self._locale, "modals.close_rejected")
                 )
             )
         except Exception:
             LOGGER.exception("Unexpected ticket closure error in guild %s", self._guild_id)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
-                    "Could not close the ticket. Details were written to bot logs."
+                    t(self._locale, "modals.close_unexpected")
                 )
             )
 
@@ -294,11 +331,13 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
         self,
         rest: hikari.api.RESTClient,
         ticket: Ticket,
+        *,
+        locale: str,
     ) -> None:
         try:
             await rest.create_message(
                 ticket.thread_id,
-                embed=build_ticket_closed_thread_embed(ticket),
+                embed=build_ticket_closed_thread_embed(ticket, locale=locale),
             )
         except (hikari.ForbiddenError, hikari.NotFoundError, hikari.BadRequestError):
             LOGGER.exception("Failed to send closed message for ticket %s", ticket.id)

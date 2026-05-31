@@ -24,6 +24,7 @@ bot/
 ├── runtime.py           # dependencies shared by Lightbulb extensions
 ├── database/            # SQLAlchemy models, async sessions, Alembic, repositories
 ├── extensions/          # slash commands and Discord event handlers
+├── i18n/                # JSON locale catalogs and translation helpers
 ├── services/            # business logic independent from Discord adapters
 ├── ui/                  # embeds, views, modals, selects
 └── utils/               # shared helpers and domain exceptions
@@ -37,6 +38,7 @@ Discord adapters live in `extensions/` and `ui/`. Business behavior lives in
 The PostgreSQL schema is managed through Alembic:
 
 - `guild_settings`: per-server channel/message IDs and enabled state.
+- `guild_settings.locale`: selected server language, defaulting to `en`.
 - `support_roles`: support role IDs per server.
 - `user_ticket_channels`: one private ticket channel per user per server.
 - `tickets`: ticket records with `open`, `in_progress`, `waiting_user`,
@@ -46,3 +48,10 @@ The PostgreSQL schema is managed through Alembic:
 
 The bot checks database connectivity during startup and disposes the async engine on
 shutdown.
+
+## Localization
+
+Translations live in `bot/i18n/locales/*.json`. The translation helper falls back
+to English when a locale or key is missing. Adding another language should only
+require adding a new JSON catalog with `_meta.name`, `_meta.native_name`, and the
+same translation keys.

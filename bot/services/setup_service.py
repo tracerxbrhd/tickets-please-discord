@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import GuildSettings, SupportRole
 from bot.database.repositories import GuildSettingsRepository, SupportRoleRepository
+from bot.i18n import DEFAULT_LOCALE
 from bot.ui.embeds import build_settings_panel_embed, build_support_panel_embed
 from bot.ui.views import build_settings_panel_components, build_support_panel_components
 from bot.utils.permissions import private_text_channel_overwrites
@@ -37,6 +38,7 @@ class SetupResult:
     settings_channel_id: int
     support_message_id: int
     settings_message_id: int
+    locale: str
     created_resources: list[str] = field(default_factory=list)
     reused_resources: list[str] = field(default_factory=list)
 
@@ -87,6 +89,7 @@ class SetupService:
             rest,
             guild_id=guild_id,
             support_channel=channels.support_channel,
+            locale=settings.locale if settings else DEFAULT_LOCALE,
             support_message_id=settings.support_message_id if settings else None,
             created=created,
             reused=reused,
@@ -101,6 +104,7 @@ class SetupService:
             logs_channel_id=int(channels.logs_channel.id),
             settings_channel_id=int(channels.settings_channel.id),
             support_message_id=int(support_message.id),
+            locale=settings.locale if settings else DEFAULT_LOCALE,
         )
 
         settings_message = await self._upsert_settings_message(
@@ -133,6 +137,7 @@ class SetupService:
             ),
             support_message_id=settings_record.support_message_id or int(support_message.id),
             settings_message_id=settings_record.settings_message_id or int(settings_message.id),
+            locale=settings_record.locale,
             created_resources=created,
             reused_resources=reused,
         )
@@ -267,6 +272,7 @@ class SetupService:
         *,
         guild_id: int,
         support_channel: hikari.GuildTextChannel,
+        locale: str,
         support_message_id: int | None,
         created: list[str],
         reused: list[str],
@@ -276,8 +282,8 @@ class SetupService:
             guild_id=guild_id,
             channel_id=int(support_channel.id),
             message_id=support_message_id,
-            embed=build_support_panel_embed(),
-            components=build_support_panel_components(),
+            embed=build_support_panel_embed(locale),
+            components=build_support_panel_components(locale),
             resource_name="support panel message",
             created=created,
             reused=reused,
@@ -301,7 +307,7 @@ class SetupService:
             channel_id=int(settings_channel.id),
             message_id=settings_message_id,
             embed=build_settings_panel_embed(settings_record, support_roles=support_roles),
-            components=build_settings_panel_components(),
+            components=build_settings_panel_components(settings_record.locale),
             resource_name="settings panel message",
             created=created,
             reused=reused,
@@ -352,6 +358,7 @@ class SetupService:
         logs_channel_id: int,
         settings_channel_id: int,
         support_message_id: int,
+        locale: str,
     ) -> GuildSettings:
         fields = {
             "category_id": category_id,
@@ -359,6 +366,7 @@ class SetupService:
             "logs_channel_id": logs_channel_id,
             "settings_channel_id": settings_channel_id,
             "support_message_id": support_message_id,
+            "locale": locale,
             "is_enabled": True,
         }
         if existing is None:

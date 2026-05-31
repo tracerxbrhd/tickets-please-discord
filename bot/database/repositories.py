@@ -47,6 +47,7 @@ class GuildSettingsRepository:
         settings_channel_id: int | None = None,
         support_message_id: int | None = None,
         settings_message_id: int | None = None,
+        locale: str = "en",
         is_enabled: bool = True,
     ) -> GuildSettings:
         settings = GuildSettings(
@@ -57,6 +58,7 @@ class GuildSettingsRepository:
             settings_channel_id=settings_channel_id,
             support_message_id=support_message_id,
             settings_message_id=settings_message_id,
+            locale=locale,
             is_enabled=is_enabled,
         )
         session.add(settings)
@@ -67,7 +69,7 @@ class GuildSettingsRepository:
         self,
         session: AsyncSession,
         settings: GuildSettings,
-        **fields: int | bool | None,
+        **fields: int | str | bool | None,
     ) -> GuildSettings:
         for field_name, value in fields.items():
             setattr(settings, field_name, value)

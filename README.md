@@ -38,6 +38,7 @@ and Russian.
 - Ticket creation modal with private user channels and per-ticket threads.
 - Ticket closure flow with confirmation, audit event, and thread archival.
 - Settings panel role selector for the support role.
+- Flexible server language selection with English and Russian bundled.
 - PostgreSQL persistence for settings, roles, channels, tickets, attachments, and events.
 - Operational scripts for Windows/PowerShell and Ubuntu 24.04.
 

@@ -18,6 +18,7 @@ from bot.database.repositories import (
     TicketRepository,
     UserTicketChannelRepository,
 )
+from bot.i18n import DEFAULT_LOCALE, t
 from bot.utils.formatters import ticket_thread_name, user_ticket_channel_name
 from bot.utils.limits import MAX_OPEN_TICKETS_PER_USER
 from bot.utils.permissions import user_ticket_channel_overwrites
@@ -197,14 +198,12 @@ class TicketService:
             return TicketCreationResult(validation=validation)
 
         settings = validation.settings
+        locale = settings.locale if settings else DEFAULT_LOCALE
         if settings is None or settings.category_id is None:
             return TicketCreationResult(
                 validation=PanelValidationResult(
                     is_valid=False,
-                    reason=(
-                        "The ticket category is not configured. "
-                        "An administrator must run `/tickets-setup` again."
-                    ),
+                    reason=t(locale, "ticket.category_missing"),
                     settings=settings,
                 )
             )
@@ -281,14 +280,18 @@ class TicketService:
         if ticket is None:
             return TicketCloseValidationResult(
                 is_valid=False,
-                reason="This thread is not linked to a saved ticket.",
+                reason=t(
+                    settings.locale if settings else DEFAULT_LOCALE,
+                    "ticket.thread_not_linked",
+                ),
                 settings=settings,
             )
 
+        locale = settings.locale if settings else DEFAULT_LOCALE
         if ticket.status == TicketStatus.CLOSED:
             return TicketCloseValidationResult(
                 is_valid=False,
-                reason="This ticket is already closed and cannot be reopened.",
+                reason=t(locale, "ticket.already_closed"),
                 ticket=ticket,
                 settings=settings,
             )
@@ -304,7 +307,7 @@ class TicketService:
         ):
             return TicketCloseValidationResult(
                 is_valid=False,
-                reason="You do not have permission to close this ticket.",
+                reason=t(locale, "ticket.close_forbidden"),
                 ticket=ticket,
                 settings=settings,
             )
@@ -364,26 +367,21 @@ class TicketService:
         if settings is None:
             return PanelValidationResult(
                 is_valid=False,
-                reason=(
-                    "The ticket system is not configured yet. "
-                    "An administrator must run `/tickets-setup`."
-                ),
+                reason=t(DEFAULT_LOCALE, "ticket.system_not_configured"),
             )
 
+        locale = settings.locale
         if not settings.is_enabled:
             return PanelValidationResult(
                 is_valid=False,
-                reason="The ticket system is currently disabled.",
+                reason=t(locale, "ticket.system_disabled"),
                 settings=settings,
             )
 
         if settings.support_channel_id != channel_id or settings.support_message_id != message_id:
             return PanelValidationResult(
                 is_valid=False,
-                reason=(
-                    "This support panel is stale. "
-                    "Use the current message in the support channel."
-                ),
+                reason=t(locale, "ticket.support_panel_stale"),
                 settings=settings,
             )
 
@@ -405,9 +403,10 @@ class TicketService:
         if open_ticket_count >= MAX_OPEN_TICKETS_PER_USER:
             return PanelValidationResult(
                 is_valid=False,
-                reason=(
-                    "You already have the maximum number of open tickets "
-                    f"({MAX_OPEN_TICKETS_PER_USER}). Close one before creating a new ticket."
+                reason=t(
+                    settings.locale if settings else DEFAULT_LOCALE,
+                    "ticket.limit_reached",
+                    limit=MAX_OPEN_TICKETS_PER_USER,
                 ),
                 settings=settings,
             )

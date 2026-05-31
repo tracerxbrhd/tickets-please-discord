@@ -63,3 +63,7 @@ Selecting a role:
 - logs `support_role_assigned` to the logs channel.
 
 The `@everyone` role is rejected as a support role.
+
+The settings panel also has a language selector. The selected language is saved in
+`guild_settings.locale`, then the support panel and settings panel are refreshed in
+that language. English (`en`) and Russian (`ru`) are bundled by default.

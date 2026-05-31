@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import GuildSettings, SupportRole
 from bot.database.repositories import GuildSettingsRepository, SupportRoleRepository
+from bot.i18n import DEFAULT_LOCALE, normalize_locale
 
 
 @dataclass(slots=True)
@@ -16,6 +17,7 @@ class ResetResult:
 
     was_configured: bool
     logs_channel_id: int | None
+    locale: str
 
 
 @dataclass(slots=True)
@@ -25,6 +27,16 @@ class SupportRoleUpdateResult:
     settings: GuildSettings | None
     old_role_ids: set[int]
     new_role_ids: set[int]
+    support_roles: list[SupportRole]
+
+
+@dataclass(slots=True)
+class LocaleUpdateResult:
+    """Result of updating the configured guild locale."""
+
+    settings: GuildSettings
+    old_locale: str
+    new_locale: str
     support_roles: list[SupportRole]
 
 
@@ -87,6 +99,34 @@ class SettingsService:
             support_roles=[role],
         )
 
+    async def set_locale(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        locale: str,
+    ) -> LocaleUpdateResult | None:
+        """Update the language used by a guild's ticket system."""
+
+        settings = await self._settings_repository.get_by_guild_id(session, guild_id)
+        if settings is None:
+            return None
+
+        old_locale = settings.locale
+        new_locale = normalize_locale(locale)
+        settings = await self._settings_repository.update(
+            session,
+            settings,
+            locale=new_locale,
+        )
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        return LocaleUpdateResult(
+            settings=settings,
+            old_locale=old_locale,
+            new_locale=new_locale,
+            support_roles=support_roles,
+        )
+
     async def reset_settings(
         self,
         session: AsyncSession,
@@ -97,9 +137,14 @@ class SettingsService:
 
         settings = await self._settings_repository.get_by_guild_id(session, guild_id)
         logs_channel_id = settings.logs_channel_id if settings else None
+        locale = settings.locale if settings else DEFAULT_LOCALE
 
         await self._support_role_repository.clear_for_guild(session, guild_id)
         was_configured = await self._settings_repository.delete_by_guild_id(session, guild_id)
         await session.flush()
 
-        return ResetResult(was_configured=was_configured, logs_channel_id=logs_channel_id)
+        return ResetResult(
+            was_configured=was_configured,
+            logs_channel_id=logs_channel_id,
+            locale=locale,
+        )
