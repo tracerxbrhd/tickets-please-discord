@@ -10,16 +10,23 @@ import miru
 from bot.database.models import Ticket
 from bot.i18n import DEFAULT_LOCALE, normalize_locale, t
 from bot.ui.embeds import (
+    build_channel_names_updated_embed,
     build_panel_error_embed,
+    build_settings_panel_embed,
     build_ticket_closed_response_embed,
     build_ticket_closed_thread_embed,
     build_ticket_created_response_embed,
     build_ticket_thread_embed,
 )
-from bot.utils.formatters import discord_account_name
+from bot.utils.formatters import discord_account_name, slugify_channel_name
 from bot.utils.permissions import member_permissions, member_role_ids
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _optional_modal_value(value: object) -> str | None:
+    text = str(value or "").strip()
+    return text or None
 
 
 class TicketCreateModal(miru.Modal, title="Create ticket"):
@@ -161,6 +168,11 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                     result.ticket.log_thread_id = updated_ticket.log_thread_id
 
             if result.user_channel_created:
+                locale = (
+                    result.validation.settings.locale
+                    if result.validation.settings
+                    else self._locale
+                )
                 await runtime.logging_service.send_system_event(
                     runtime.bot.rest,
                     logs_channel_id=result.validation.settings.logs_channel_id
@@ -168,10 +180,13 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                     else None,
                     event_type="user_channel_created",
                     actor_id=int(ctx.user.id),
-                    description=(
-                        "Created private ticket channel "
-                        f"<#{result.user_channel_id}> for <@{ctx.user.id}>."
+                    description=t(
+                        locale,
+                        "logs.user_channel_created_description",
+                        channel_id=result.user_channel_id,
+                        user_id=int(ctx.user.id),
                     ),
+                    locale=locale,
                 )
             await ctx.edit_response(
                 embed=build_ticket_created_response_embed(
@@ -203,6 +218,230 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                     t(self._locale, "modals.create_unexpected")
                 )
             )
+
+
+class ChannelNamesModal(miru.Modal, title="Channel and category names"):
+    """Modal used to rename ticket system channels without recreating them."""
+
+    category_name = miru.TextInput(
+        label="Category name",
+        placeholder="Leave empty to keep the current category name",
+        min_length=0,
+        max_length=100,
+        required=False,
+    )
+    support_channel_name = miru.TextInput(
+        label="Support channel",
+        placeholder="Leave empty to keep the current support channel",
+        min_length=0,
+        max_length=100,
+        required=False,
+    )
+    logs_channel_name = miru.TextInput(
+        label="Logs channel",
+        placeholder="Leave empty to keep the current logs channel",
+        min_length=0,
+        max_length=100,
+        required=False,
+    )
+    settings_channel_name = miru.TextInput(
+        label="Settings channel",
+        placeholder="Leave empty to keep the current settings channel",
+        min_length=0,
+        max_length=100,
+        required=False,
+    )
+
+    def __init__(self, *, guild_id: int, locale: str = DEFAULT_LOCALE) -> None:
+        super().__init__(timeout=300)
+        self._guild_id = guild_id
+        self._locale = normalize_locale(locale)
+        self.title = t(self._locale, "modals.channel_names_title")
+        self.category_name.label = t(self._locale, "modals.category_name")
+        self.category_name.placeholder = t(
+            self._locale,
+            "modals.category_name_placeholder",
+        )
+        self.support_channel_name.label = t(self._locale, "modals.support_channel_name")
+        self.support_channel_name.placeholder = t(
+            self._locale,
+            "modals.support_channel_name_placeholder",
+        )
+        self.logs_channel_name.label = t(self._locale, "modals.logs_channel_name")
+        self.logs_channel_name.placeholder = t(
+            self._locale,
+            "modals.logs_channel_name_placeholder",
+        )
+        self.settings_channel_name.label = t(self._locale, "modals.settings_channel_name")
+        self.settings_channel_name.placeholder = t(
+            self._locale,
+            "modals.settings_channel_name_placeholder",
+        )
+
+    async def callback(self, ctx: miru.ModalContext) -> None:
+        """Rename configured Discord resources and persist their names."""
+
+        await ctx.defer(
+            hikari.ResponseType.DEFERRED_MESSAGE_CREATE,
+            flags=hikari.MessageFlag.EPHEMERAL,
+        )
+
+        permissions = member_permissions(getattr(ctx, "member", None))
+        if not permissions & (hikari.Permissions.ADMINISTRATOR | hikari.Permissions.MANAGE_GUILD):
+            await ctx.edit_response(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.settings_permission"))
+            )
+            return
+
+        from bot.runtime import get_runtime
+
+        runtime = get_runtime()
+        try:
+            async with runtime.database.session() as session:
+                settings = await runtime.settings_service.get_settings(
+                    session,
+                    guild_id=self._guild_id,
+                )
+
+            if settings is None:
+                await ctx.edit_response(
+                    embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.setup_required"))
+                )
+                return
+
+            locale = settings.locale
+            category_name = self._clean_category_name(
+                _optional_modal_value(self.category_name.value),
+                current=settings.category_name,
+            )
+            support_name = self._clean_channel_name(
+                _optional_modal_value(self.support_channel_name.value),
+                current=settings.support_channel_name,
+            )
+            logs_name = self._clean_channel_name(
+                _optional_modal_value(self.logs_channel_name.value),
+                current=settings.logs_channel_name,
+            )
+            settings_name = self._clean_channel_name(
+                _optional_modal_value(self.settings_channel_name.value),
+                current=settings.settings_channel_name,
+            )
+            if "" in {category_name, support_name, logs_name, settings_name}:
+                await ctx.edit_response(
+                    embed=build_panel_error_embed(t(locale, "modals.channel_name_too_short"))
+                )
+                return
+
+            await self._rename_channel(runtime.bot.rest, settings.category_id, category_name)
+            await self._rename_channel(runtime.bot.rest, settings.support_channel_id, support_name)
+            await self._rename_channel(runtime.bot.rest, settings.logs_channel_id, logs_name)
+            await self._rename_channel(
+                runtime.bot.rest,
+                settings.settings_channel_id,
+                settings_name,
+            )
+
+            async with runtime.database.session() as session:
+                result = await runtime.settings_service.set_channel_names(
+                    session,
+                    guild_id=self._guild_id,
+                    category_name=category_name,
+                    support_channel_name=support_name,
+                    logs_channel_name=logs_name,
+                    settings_channel_name=settings_name,
+                )
+
+            if result is None:
+                await ctx.edit_response(
+                    embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.setup_required"))
+                )
+                return
+
+            from bot.ui.views import build_settings_panel_components
+
+            if (
+                result.settings.settings_channel_id is not None
+                and result.settings.settings_message_id is not None
+            ):
+                await runtime.bot.rest.edit_message(
+                    result.settings.settings_channel_id,
+                    result.settings.settings_message_id,
+                    embed=build_settings_panel_embed(
+                        result.settings,
+                        support_roles=result.support_roles,
+                    ),
+                    components=build_settings_panel_components(result.settings.locale),
+                )
+            await runtime.logging_service.send_system_event(
+                runtime.bot.rest,
+                logs_channel_id=result.settings.logs_channel_id,
+                event_type="channel_names_updated",
+                actor_id=int(ctx.user.id),
+                description=t(
+                    locale,
+                    "settings.channel_names_updated_description",
+                    fields=self._format_changed_fields(result.changed_fields, locale=locale),
+                ),
+                locale=locale,
+            )
+            await ctx.edit_response(
+                embed=build_channel_names_updated_embed(
+                    result.changed_fields,
+                    locale=result.settings.locale,
+                )
+            )
+        except hikari.ForbiddenError:
+            LOGGER.exception("Discord denied channel rename in guild %s", self._guild_id)
+            await ctx.edit_response(
+                embed=build_panel_error_embed(
+                    t(self._locale, "errors.channel_names_update_failed")
+                )
+            )
+        except hikari.BadRequestError:
+            LOGGER.exception("Discord rejected channel rename in guild %s", self._guild_id)
+            await ctx.edit_response(
+                embed=build_panel_error_embed(
+                    t(self._locale, "errors.channel_names_update_failed")
+                )
+            )
+        except Exception:
+            LOGGER.exception("Unexpected channel rename error in guild %s", self._guild_id)
+            await ctx.edit_response(
+                embed=build_panel_error_embed(
+                    t(self._locale, "errors.channel_names_update_failed")
+                )
+            )
+
+    def _clean_category_name(self, value: str | None, *, current: str) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()[:100]
+        if len(cleaned) < 2:
+            return ""
+        return cleaned if cleaned != current else None
+
+    def _clean_channel_name(self, value: str | None, *, current: str) -> str | None:
+        if value is None:
+            return None
+        cleaned = slugify_channel_name(value, fallback=current, max_length=100)
+        if len(cleaned) < 2:
+            return ""
+        return cleaned if cleaned != current else None
+
+    async def _rename_channel(
+        self,
+        rest: hikari.api.RESTClient,
+        channel_id: int | None,
+        name: str | None,
+    ) -> None:
+        if channel_id is None or name is None:
+            return
+        await rest.edit_channel(channel_id, name=name)
+
+    def _format_changed_fields(self, changed_fields: set[str], *, locale: str) -> str:
+        if not changed_fields:
+            return t(locale, "common.none")
+        return ", ".join(t(locale, f"settings.{field}") for field in sorted(changed_fields))
 
 
 class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):

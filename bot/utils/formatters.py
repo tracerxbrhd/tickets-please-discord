@@ -6,11 +6,11 @@ import re
 from datetime import datetime
 
 
-def channel_mention(channel_id: int | None) -> str:
+def channel_mention(channel_id: int | None, *, fallback: str = "not configured") -> str:
     """Return a Discord channel mention or a placeholder."""
 
     if channel_id is None:
-        return "not configured"
+        return fallback
     return f"<#{channel_id}>"
 
 
@@ -26,11 +26,11 @@ def channel_jump_url(guild_id: int, channel_id: int) -> str:
     return f"https://discord.com/channels/{guild_id}/{channel_id}"
 
 
-def discord_timestamp(value: datetime | None) -> str:
+def discord_timestamp(value: datetime | None, *, fallback: str = "not available") -> str:
     """Format a datetime for Discord markdown."""
 
     if value is None:
-        return "not available"
+        return fallback
     return f"<t:{int(value.timestamp())}:f>"
 
 

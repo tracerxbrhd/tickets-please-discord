@@ -9,7 +9,11 @@ import lightbulb
 
 from bot.i18n import DEFAULT_LOCALE, t
 from bot.runtime import get_runtime
-from bot.ui.embeds import build_reset_embed, build_setup_summary_embed, build_status_embed
+from bot.ui.embeds import (
+    build_reset_embed,
+    build_setup_summary_embed,
+    build_status_embed,
+)
 from bot.utils.permissions import (
     SETUP_BOT_PERMISSIONS,
     SETUP_USER_PERMISSIONS,
@@ -126,7 +130,8 @@ class TicketsSetup(
                 logs_channel_id=result.logs_channel_id,
                 event_type="setup_completed",
                 actor_id=int(ctx.user.id),
-                description="Tickets! Please system channels were created or updated.",
+                description=t(result.locale, "logs.setup_completed_description"),
+                locale=result.locale,
             )
             await _respond_ephemeral(ctx, embed=build_setup_summary_embed(result))
         except hikari.ForbiddenError:
@@ -207,10 +212,8 @@ class TicketsReset(
                 logs_channel_id=result.logs_channel_id,
                 event_type="settings_reset",
                 actor_id=int(ctx.user.id),
-                description=(
-                    "Tickets! Please saved configuration was reset. "
-                    "Discord channels were not deleted."
-                ),
+                description=t(result.locale, "logs.settings_reset_description"),
+                locale=result.locale,
             )
             await _respond_ephemeral(
                 ctx,

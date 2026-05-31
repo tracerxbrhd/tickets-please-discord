@@ -99,6 +99,14 @@ class TicketClaimResult:
     ticket: Ticket | None = None
 
 
+@dataclass(slots=True)
+class TicketMessageLogContext:
+    """Resolved ticket context for message mirroring into the log thread."""
+
+    ticket: Ticket
+    settings: GuildSettings | None
+
+
 class TicketService:
     """Service API for ticket-facing support panel actions."""
 
@@ -291,6 +299,31 @@ class TicketService:
             ticket_id,
             log_thread_id=log_thread_id,
         )
+
+    async def get_message_log_context(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        thread_id: int,
+        author_id: int,
+    ) -> TicketMessageLogContext | None:
+        """Return a loggable claimed-ticket context for a thread message."""
+
+        ticket = await self._ticket_repository.get_by_thread_id(
+            session,
+            guild_id=guild_id,
+            thread_id=thread_id,
+        )
+        if ticket is None:
+            return None
+        if ticket.status == TicketStatus.CLOSED or ticket.assigned_moderator_id is None:
+            return None
+        if author_id not in {ticket.user_id, ticket.assigned_moderator_id}:
+            return None
+
+        settings = await self._settings_repository.get_by_guild_id(session, guild_id)
+        return TicketMessageLogContext(ticket=ticket, settings=settings)
 
     async def validate_ticket_claim(
         self,

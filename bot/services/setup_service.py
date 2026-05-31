@@ -51,6 +51,14 @@ class _ChannelBundle:
     settings_channel: hikari.GuildTextChannel
 
 
+@dataclass(slots=True)
+class _ChannelNames:
+    category: str
+    support: str
+    logs: str
+    settings: str
+
+
 class SetupService:
     """Creates and persists the basic Discord resources for a guild."""
 
@@ -75,12 +83,14 @@ class SetupService:
         bot_user = await rest.fetch_my_user()
         created: list[str] = []
         reused: list[str] = []
+        channel_names = self._channel_names(settings)
 
         channels = await self._ensure_channels(
             rest,
             guild_id=guild_id,
             bot_user_id=int(bot_user.id),
             settings=settings,
+            channel_names=channel_names,
             created=created,
             reused=reused,
         )
@@ -105,6 +115,7 @@ class SetupService:
             settings_channel_id=int(channels.settings_channel.id),
             support_message_id=int(support_message.id),
             locale=settings.locale if settings else DEFAULT_LOCALE,
+            channel_names=channel_names,
         )
         support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
         await self._apply_support_log_overwrites(
@@ -155,6 +166,7 @@ class SetupService:
         guild_id: int,
         bot_user_id: int,
         settings: GuildSettings | None,
+        channel_names: _ChannelNames,
         created: list[str],
         reused: list[str],
     ) -> _ChannelBundle:
@@ -162,6 +174,7 @@ class SetupService:
             rest,
             guild_id=guild_id,
             category_id=settings.category_id if settings else None,
+            name=channel_names.category,
             created=created,
             reused=reused,
         )
@@ -169,7 +182,7 @@ class SetupService:
             rest,
             guild_id=guild_id,
             channel_id=settings.support_channel_id if settings else None,
-            name=SUPPORT_CHANNEL_NAME,
+            name=channel_names.support,
             parent_id=int(category.id),
             permission_overwrites=None,
             created=created,
@@ -183,7 +196,7 @@ class SetupService:
             rest,
             guild_id=guild_id,
             channel_id=settings.logs_channel_id if settings else None,
-            name=LOGS_CHANNEL_NAME,
+            name=channel_names.logs,
             parent_id=int(category.id),
             permission_overwrites=private_overwrites,
             created=created,
@@ -193,7 +206,7 @@ class SetupService:
             rest,
             guild_id=guild_id,
             channel_id=settings.settings_channel_id if settings else None,
-            name=SETTINGS_CHANNEL_NAME,
+            name=channel_names.settings,
             parent_id=int(category.id),
             permission_overwrites=private_overwrites,
             created=created,
@@ -212,17 +225,19 @@ class SetupService:
         *,
         guild_id: int,
         category_id: int | None,
+        name: str,
         created: list[str],
         reused: list[str],
     ) -> hikari.GuildCategory:
         if category_id is not None:
             existing = await self._fetch_channel(rest, category_id, hikari.GuildCategory)
             if existing is not None:
-                reused.append(f"category {CATEGORY_NAME}")
+                await self._rename_channel_if_needed(rest, channel=existing, name=name)
+                reused.append(f"category {name}")
                 return existing
 
-        category = await rest.create_guild_category(guild_id, name=CATEGORY_NAME)
-        created.append(f"category {CATEGORY_NAME}")
+        category = await rest.create_guild_category(guild_id, name=name)
+        created.append(f"category {name}")
         return category
 
     async def _get_or_create_text_channel(
@@ -240,6 +255,7 @@ class SetupService:
         if channel_id is not None:
             existing = await self._fetch_channel(rest, channel_id, hikari.GuildTextChannel)
             if existing is not None:
+                await self._rename_channel_if_needed(rest, channel=existing, name=name)
                 if permission_overwrites is not None:
                     await self._apply_channel_overwrites(
                         rest,
@@ -264,6 +280,25 @@ class SetupService:
             )
         created.append(f"channel #{name}")
         return channel
+
+    async def _rename_channel_if_needed(
+        self,
+        rest: hikari.api.RESTClient,
+        *,
+        channel: hikari.GuildCategory | hikari.GuildTextChannel,
+        name: str,
+    ) -> None:
+        if channel.name == name:
+            return
+
+        try:
+            await rest.edit_channel(channel.id, name=name)
+        except hikari.NotFoundError:
+            LOGGER.warning("Cannot rename missing channel %s", channel.id)
+        except hikari.ForbiddenError:
+            LOGGER.warning("Missing permission to rename channel %s", channel.id)
+        except hikari.BadRequestError:
+            LOGGER.warning("Discord rejected channel rename for %s", channel.id)
 
     async def _apply_channel_overwrites(
         self,
@@ -432,6 +467,7 @@ class SetupService:
         settings_channel_id: int,
         support_message_id: int,
         locale: str,
+        channel_names: _ChannelNames,
     ) -> GuildSettings:
         fields: dict[str, int | str | bool | None] = {
             "category_id": category_id,
@@ -440,6 +476,10 @@ class SetupService:
             "settings_channel_id": settings_channel_id,
             "support_message_id": support_message_id,
             "locale": locale,
+            "category_name": channel_names.category,
+            "support_channel_name": channel_names.support,
+            "logs_channel_name": channel_names.logs,
+            "settings_channel_name": channel_names.settings,
             "is_enabled": True,
         }
         if existing is None:
@@ -452,7 +492,30 @@ class SetupService:
                 settings_channel_id=settings_channel_id,
                 support_message_id=support_message_id,
                 locale=locale,
+                category_name=channel_names.category,
+                support_channel_name=channel_names.support,
+                logs_channel_name=channel_names.logs,
+                settings_channel_name=channel_names.settings,
                 is_enabled=True,
             )
 
         return await self._settings_repository.update(session, existing, **fields)
+
+    def _channel_names(self, settings: GuildSettings | None) -> _ChannelNames:
+        return _ChannelNames(
+            category=(settings.category_name if settings else CATEGORY_NAME) or CATEGORY_NAME,
+            support=(
+                settings.support_channel_name
+                if settings
+                else SUPPORT_CHANNEL_NAME
+            )
+            or SUPPORT_CHANNEL_NAME,
+            logs=(settings.logs_channel_name if settings else LOGS_CHANNEL_NAME)
+            or LOGS_CHANNEL_NAME,
+            settings=(
+                settings.settings_channel_name
+                if settings
+                else SETTINGS_CHANNEL_NAME
+            )
+            or SETTINGS_CHANNEL_NAME,
+        )

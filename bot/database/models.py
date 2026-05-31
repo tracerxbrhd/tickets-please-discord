@@ -88,6 +88,26 @@ class GuildSettings(TimestampMixin, Base):
     support_message_id: Mapped[int | None] = mapped_column(BigInteger)
     settings_message_id: Mapped[int | None] = mapped_column(BigInteger)
     locale: Mapped[str] = mapped_column(String(12), default="en", server_default="en")
+    category_name: Mapped[str] = mapped_column(
+        String(100),
+        default="Tickets! Please",
+        server_default="Tickets! Please",
+    )
+    support_channel_name: Mapped[str] = mapped_column(
+        String(100),
+        default="support",
+        server_default="support",
+    )
+    logs_channel_name: Mapped[str] = mapped_column(
+        String(100),
+        default="tickets-logs",
+        server_default="tickets-logs",
+    )
+    settings_channel_name: Mapped[str] = mapped_column(
+        String(100),
+        default="tickets-settings",
+        server_default="tickets-settings",
+    )
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
 
 

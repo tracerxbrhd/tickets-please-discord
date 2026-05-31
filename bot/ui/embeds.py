@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 BRAND_COLOR = hikari.Color.of(0x5865F2)
 SUCCESS_COLOR = hikari.Color.of(0x2ECC71)
 WARNING_COLOR = hikari.Color.of(0xF1C40F)
+ERROR_COLOR = hikari.Color.of(0xE74C3C)
 
 
 def build_support_panel_embed(locale: str = DEFAULT_LOCALE) -> hikari.Embed:
@@ -37,16 +38,6 @@ def build_support_panel_embed(locale: str = DEFAULT_LOCALE) -> hikari.Embed:
             color=BRAND_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field(
-            t(locale, "support_panel.create_title"),
-            t(locale, "support_panel.create_body"),
-            inline=True,
-        )
-        .add_field(
-            t(locale, "support_panel.my_title"),
-            t(locale, "support_panel.my_body"),
-            inline=True,
-        )
         .set_footer("Tickets! Please")
     )
 
@@ -59,56 +50,60 @@ def build_settings_panel_embed(
     """Build the settings channel embed for the current guild configuration."""
 
     locale = normalize_locale(settings.locale)
+    status_icon = "🟢" if settings.is_enabled else "🔴"
+    channel_lines = "\n".join(
+        (
+            f"{t(locale, 'settings.support_channel')}: "
+            f"{_channel_mention(settings.support_channel_id, locale=locale)}",
+            f"{t(locale, 'settings.logs_channel')}: "
+            f"{_channel_mention(settings.logs_channel_id, locale=locale)}",
+            f"{t(locale, 'settings.settings_channel')}: "
+            f"{_channel_mention(settings.settings_channel_id, locale=locale)}",
+        )
+    )
+    naming_lines = "\n".join(
+        (
+            f"{t(locale, 'settings.category')}: `{settings.category_name}`",
+            f"{t(locale, 'settings.support_channel')}: "
+            f"`{settings.support_channel_name}`",
+            f"{t(locale, 'settings.logs_channel')}: `{settings.logs_channel_name}`",
+            f"{t(locale, 'settings.settings_channel')}: "
+            f"`{settings.settings_channel_name}`",
+        )
+    )
     return (
         hikari.Embed(
             title=t(locale, "settings.title"),
-            description=t(locale, "settings.description"),
+            description=(
+                f"{status_icon} "
+                f"{t(locale, 'common.enabled' if settings.is_enabled else 'common.disabled')}"
+                f"\n{_format_language(settings.locale)}"
+            ),
             color=BRAND_COLOR,
             timestamp=datetime.now(UTC),
         )
         .add_field(
-            t(locale, "settings.category"),
-            channel_mention(settings.category_id),
+            f"📁 {t(locale, 'settings.category')}",
+            _channel_mention(settings.category_id, locale=locale),
             inline=True,
         )
         .add_field(
-            t(locale, "settings.support_channel"),
-            channel_mention(settings.support_channel_id),
-            inline=True,
-        )
-        .add_field(
-            t(locale, "settings.logs_channel"),
-            channel_mention(settings.logs_channel_id),
-            inline=True,
-        )
-        .add_field(
-            t(locale, "settings.settings_channel"),
-            channel_mention(settings.settings_channel_id),
-            inline=True,
-        )
-        .add_field(
-            t(locale, "settings.system"),
-            t(locale, "common.enabled" if settings.is_enabled else "common.disabled"),
-            inline=True,
-        )
-        .add_field(
-            t(locale, "settings.support_roles"),
+            f"🛡️ {t(locale, 'settings.support_roles')}",
             _format_support_roles(support_roles, locale=locale),
             inline=True,
         )
-        .add_field(t(locale, "settings.language"), _format_language(settings.locale), inline=True)
         .add_field(
-            t(locale, "settings.open_ticket_limit"),
+            f"🎫 {t(locale, 'settings.open_ticket_limit')}",
             t(locale, "settings.open_ticket_limit_value", limit=MAX_OPEN_TICKETS_PER_USER),
             inline=True,
         )
         .add_field(
-            t(locale, "settings.attachment_mode"),
-            t(locale, "settings.attachment_mode_value"),
-            inline=True,
+            f"📌 {t(locale, 'settings.channels')}",
+            channel_lines,
+            inline=False,
         )
-        .add_field(t(locale, "settings.channel_format"), "ticket-{account-name}", inline=True)
-        .add_field(t(locale, "settings.thread_format"), "ticket-{number}", inline=True)
+        .add_field(f"🏷️ {t(locale, 'settings.naming')}", naming_lines, inline=False)
+        .set_footer(t(locale, "settings.footer"))
     )
 
 
@@ -135,6 +130,28 @@ def build_language_updated_embed(locale: str) -> hikari.Embed:
             "settings.language_updated_description",
             language=_format_language(locale),
         ),
+        color=SUCCESS_COLOR,
+        timestamp=datetime.now(UTC),
+    )
+
+
+def build_channel_names_updated_embed(
+    changed_fields: set[str],
+    *,
+    locale: str = DEFAULT_LOCALE,
+) -> hikari.Embed:
+    """Build an ephemeral response after channel names were changed."""
+
+    locale = normalize_locale(locale)
+    if changed_fields:
+        changed = ", ".join(
+            t(locale, f"settings.{field}") for field in sorted(changed_fields)
+        )
+    else:
+        changed = t(locale, "common.none")
+    return hikari.Embed(
+        title=t(locale, "settings.channel_names_updated_title"),
+        description=t(locale, "settings.channel_names_updated_description", fields=changed),
         color=SUCCESS_COLOR,
         timestamp=datetime.now(UTC),
     )
@@ -187,16 +204,24 @@ def build_setup_summary_embed(result: SetupResult) -> hikari.Embed:
             color=SUCCESS_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field(t(locale, "setup.category"), channel_mention(result.category_id), inline=True)
         .add_field(
-            t(locale, "setup.support"),
-            channel_mention(result.support_channel_id),
+            t(locale, "setup.category"),
+            _channel_mention(result.category_id, locale=locale),
             inline=True,
         )
-        .add_field(t(locale, "setup.logs"), channel_mention(result.logs_channel_id), inline=True)
+        .add_field(
+            t(locale, "setup.support"),
+            _channel_mention(result.support_channel_id, locale=locale),
+            inline=True,
+        )
+        .add_field(
+            t(locale, "setup.logs"),
+            _channel_mention(result.logs_channel_id, locale=locale),
+            inline=True,
+        )
         .add_field(
             t(locale, "setup.settings"),
-            channel_mention(result.settings_channel_id),
+            _channel_mention(result.settings_channel_id, locale=locale),
             inline=True,
         )
         .add_field(t(locale, "setup.created"), created, inline=False)
@@ -232,27 +257,35 @@ def build_status_embed(settings: GuildSettings | None) -> hikari.Embed:
         )
         .add_field(
             t(locale, "settings.category"),
-            channel_mention(settings.category_id),
+            _channel_mention(settings.category_id, locale=locale),
             inline=True,
         )
         .add_field(
             t(locale, "settings.support_channel"),
-            channel_mention(settings.support_channel_id),
+            _channel_mention(settings.support_channel_id, locale=locale),
             inline=True,
         )
         .add_field(
             t(locale, "settings.logs_channel"),
-            channel_mention(settings.logs_channel_id),
+            _channel_mention(settings.logs_channel_id, locale=locale),
             inline=True,
         )
         .add_field(
             t(locale, "settings.settings_channel"),
-            channel_mention(settings.settings_channel_id),
+            _channel_mention(settings.settings_channel_id, locale=locale),
             inline=True,
         )
         .add_field(t(locale, "settings.language"), _format_language(settings.locale), inline=True)
-        .add_field(t(locale, "status.created"), discord_timestamp(settings.created_at), inline=True)
-        .add_field(t(locale, "status.updated"), discord_timestamp(settings.updated_at), inline=True)
+        .add_field(
+            t(locale, "status.created"),
+            _discord_timestamp(settings.created_at, locale=locale),
+            inline=True,
+        )
+        .add_field(
+            t(locale, "status.updated"),
+            _discord_timestamp(settings.updated_at, locale=locale),
+            inline=True,
+        )
     )
 
 
@@ -278,18 +311,20 @@ def build_log_embed(
     event_type: str,
     actor_id: int,
     description: str,
+    locale: str = DEFAULT_LOCALE,
 ) -> hikari.Embed:
     """Build a log channel embed."""
 
+    locale = normalize_locale(locale)
     return (
         hikari.Embed(
-            title=f"Ticket system event: {event_type}",
+            title=t(locale, "logs.system_event_title"),
             description=description,
             color=BRAND_COLOR,
             timestamp=datetime.now(UTC),
         )
-        .add_field("User", f"<@{actor_id}>", inline=True)
-        .add_field("Event", event_type, inline=True)
+        .add_field(t(locale, "logs.user"), f"<@{actor_id}>", inline=True)
+        .add_field(t(locale, "logs.event"), event_type, inline=True)
     )
 
 
@@ -357,7 +392,11 @@ def build_ticket_closed_thread_embed(
         )
         .add_field(t(locale, "ticket.subject"), ticket.title, inline=False)
         .add_field(t(locale, "ticket.closed_by"), f"<@{ticket.closed_by_id}>", inline=True)
-        .add_field(t(locale, "ticket.closed_at"), discord_timestamp(ticket.closed_at), inline=True)
+        .add_field(
+            t(locale, "ticket.closed_at"),
+            _discord_timestamp(ticket.closed_at, locale=locale),
+            inline=True,
+        )
         .add_field(
             t(locale, "ticket.close_reason"),
             _trim_embed_text(ticket.close_reason or t(locale, "common.none"), limit=900),
@@ -542,13 +581,104 @@ def build_ticket_closed_log_embed(
         .add_field(t(locale, "logs.user"), f"<@{ticket.user_id}>", inline=True)
         .add_field(t(locale, "logs.moderator"), f"<@{ticket.closed_by_id}>", inline=True)
         .add_field(t(locale, "logs.ticket_id"), str(ticket.id), inline=True)
-        .add_field(t(locale, "ticket.closed_at"), discord_timestamp(ticket.closed_at), inline=True)
+        .add_field(
+            t(locale, "ticket.closed_at"),
+            _discord_timestamp(ticket.closed_at, locale=locale),
+            inline=True,
+        )
         .add_field(
             t(locale, "ticket.close_reason"),
             _trim_embed_text(ticket.close_reason or t(locale, "common.none"), limit=900),
             inline=False,
         )
         .add_field(t(locale, "logs.title"), ticket.title, inline=False)
+    )
+
+
+def build_ticket_message_log_embed(
+    ticket: Ticket,
+    *,
+    guild_id: int,
+    author_id: int,
+    author_name: str,
+    content: str,
+    attachment_names: list[str],
+    message_id: int,
+    created_at: datetime,
+    locale: str = DEFAULT_LOCALE,
+) -> hikari.Embed:
+    """Build a logs-thread embed for a ticket participant message."""
+
+    locale = normalize_locale(locale)
+    is_moderator = ticket.assigned_moderator_id == author_id
+    role_key = "logs.message_author_moderator" if is_moderator else "logs.message_author_user"
+    color = SUCCESS_COLOR if is_moderator else BRAND_COLOR
+    description = _trim_embed_text(content.strip() or t(locale, "logs.no_message_text"), limit=900)
+    embed = (
+        hikari.Embed(
+            title=t(locale, "logs.ticket_message_title", number=ticket.ticket_number),
+            description=description,
+            color=color,
+            timestamp=created_at,
+        )
+        .add_field(t(locale, "logs.author"), f"<@{author_id}>", inline=True)
+        .add_field(t(locale, "logs.author_type"), t(locale, role_key), inline=True)
+        .add_field(
+            t(locale, "logs.message_link"),
+            message_jump_url(guild_id, ticket.thread_id, message_id),
+            inline=False,
+        )
+    )
+    if author_name:
+        embed.add_field(t(locale, "logs.account"), author_name, inline=True)
+    if attachment_names:
+        embed.add_field(
+            t(locale, "logs.attachments"),
+            _trim_embed_text("\n".join(attachment_names), limit=900),
+            inline=False,
+        )
+    return embed
+
+
+def build_ping_embed(
+    *,
+    latency_ms: int | None,
+    locale: str = DEFAULT_LOCALE,
+) -> hikari.Embed:
+    """Build an ephemeral ping response with a simple health state."""
+
+    locale = normalize_locale(locale)
+    if latency_ms is None:
+        color = WARNING_COLOR
+        state_key = "ping.unknown"
+        description_key = "ping.unknown_description"
+    elif latency_ms <= 150:
+        color = SUCCESS_COLOR
+        state_key = "ping.healthy"
+        description_key = "ping.healthy_description"
+    elif latency_ms <= 350:
+        color = WARNING_COLOR
+        state_key = "ping.delayed"
+        description_key = "ping.delayed_description"
+    else:
+        color = ERROR_COLOR
+        state_key = "ping.degraded"
+        description_key = "ping.degraded_description"
+
+    latency_value = (
+        t(locale, "ping.latency_unknown")
+        if latency_ms is None
+        else t(locale, "ping.latency_value", latency=latency_ms)
+    )
+    return (
+        hikari.Embed(
+            title=t(locale, "ping.title"),
+            description=t(locale, description_key),
+            color=color,
+            timestamp=datetime.now(UTC),
+        )
+        .add_field(t(locale, "ping.state"), t(locale, state_key), inline=True)
+        .add_field(t(locale, "ping.latency"), latency_value, inline=True)
     )
 
 
@@ -575,7 +705,7 @@ def build_user_tickets_embed(
 
     def format_ticket(ticket: Ticket, *, include_closed_at: bool) -> str:
         thread_url = channel_jump_url(guild_id, ticket.thread_id)
-        created_at = discord_timestamp(ticket.created_at)
+        created_at = _discord_timestamp(ticket.created_at, locale=locale)
         title = _trim_embed_text(ticket.title, limit=60)
         lines = [
             f"`#{ticket.ticket_number}` [{title}]({thread_url})",
@@ -584,7 +714,8 @@ def build_user_tickets_embed(
         ]
         if include_closed_at and ticket.closed_at is not None:
             lines.append(
-                f"{t(locale, 'my_tickets.closed')}: {discord_timestamp(ticket.closed_at)}"
+                f"{t(locale, 'my_tickets.closed')}: "
+                f"{_discord_timestamp(ticket.closed_at, locale=locale)}"
             )
         return "\n".join(lines)
 
@@ -649,9 +780,24 @@ def _format_support_roles(
     return ", ".join(f"<@&{role.role_id}>" for role in support_roles)
 
 
+def _channel_mention(channel_id: int | None, *, locale: str) -> str:
+    return channel_mention(channel_id, fallback=t(locale, "common.not_configured"))
+
+
+def _discord_timestamp(value: datetime | None, *, locale: str) -> str:
+    return discord_timestamp(value, fallback=t(locale, "common.not_configured"))
+
+
 def _format_language(locale: str) -> str:
     locale = normalize_locale(locale)
     for language in available_languages():
         if language.code == locale:
-            return f"{language.native_name} (`{language.code}`)"
+            return f"{_language_flag(locale)} {language.native_name} (`{language.code}`)"
     return locale
+
+
+def _language_flag(locale: str) -> str:
+    return {
+        "en": "🇬🇧",
+        "ru": "🇷🇺",
+    }.get(normalize_locale(locale), "🌐")

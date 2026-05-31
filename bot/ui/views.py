@@ -21,8 +21,9 @@ from bot.ui.embeds import (
     build_ticket_thread_embed,
     build_user_tickets_embed,
 )
-from bot.ui.modals import TicketCloseConfirmModal, TicketCreateModal
+from bot.ui.modals import ChannelNamesModal, TicketCloseConfirmModal, TicketCreateModal
 from bot.ui.selects import (
+    SETTINGS_CHANNEL_NAMES_BUTTON_CUSTOM_ID,
     SETTINGS_LANGUAGE_BUTTON_CUSTOM_ID,
     SETTINGS_LANGUAGE_SELECT_CUSTOM_ID,
     SETTINGS_SUPPORT_ROLE_BUTTON_CUSTOM_ID,
@@ -36,6 +37,10 @@ SUPPORT_CREATE_TICKET_CUSTOM_ID = "tickets_please:support:create_ticket"
 SUPPORT_MY_TICKETS_CUSTOM_ID = "tickets_please:support:my_tickets"
 TICKET_CLAIM_CUSTOM_ID = "tickets_please:ticket:claim"
 TICKET_CLOSE_CUSTOM_ID = "tickets_please:ticket:close"
+LANGUAGE_FLAGS = {
+    "en": "🇬🇧",
+    "ru": "🇷🇺",
+}
 
 
 def build_support_panel_components(
@@ -76,7 +81,7 @@ def build_settings_language_select_components(
 def _language_options() -> list[miru.SelectOption]:
     return [
         miru.SelectOption(
-            label=language.native_name,
+            label=f"{LANGUAGE_FLAGS.get(language.code, '🌐')} {language.native_name}",
             value=language.code,
             description=language.name,
         )
@@ -119,7 +124,7 @@ class SupportPanelView(miru.View):
 
     @miru.button(
         label="Create ticket",
-        style=hikari.ButtonStyle.PRIMARY,
+        style=hikari.ButtonStyle.SUCCESS,
         custom_id=SUPPORT_CREATE_TICKET_CUSTOM_ID,
     )
     async def create_ticket(
@@ -258,6 +263,9 @@ class SettingsPanelView(miru.View):
             elif custom_id == SETTINGS_LANGUAGE_BUTTON_CUSTOM_ID:
                 button = cast(miru.Button, item)
                 button.label = t(locale, "buttons.change_language")
+            elif custom_id == SETTINGS_CHANNEL_NAMES_BUTTON_CUSTOM_ID:
+                button = cast(miru.Button, item)
+                button.label = t(locale, "buttons.change_channel_names")
 
     async def _settings_ids(self, ctx: miru.ViewContext) -> tuple[int, int, int] | None:
         guild_id = ctx.guild_id
@@ -344,6 +352,58 @@ class SettingsPanelView(miru.View):
                 flags=hikari.MessageFlag.EPHEMERAL,
             )
 
+    async def _open_channel_names_modal(self, ctx: miru.ViewContext) -> None:
+        settings_ids = await self._settings_ids(ctx)
+        if settings_ids is None:
+            return
+
+        guild_id, channel_id, message_id = settings_ids
+        permissions = member_permissions(getattr(ctx, "member", None))
+        if not permissions & (hikari.Permissions.ADMINISTRATOR | hikari.Permissions.MANAGE_GUILD):
+            await ctx.respond(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.settings_permission")),
+                flags=hikari.MessageFlag.EPHEMERAL,
+            )
+            return
+
+        from bot.runtime import get_runtime
+
+        runtime = get_runtime()
+        try:
+            async with runtime.database.session() as session:
+                settings = await runtime.settings_service.get_settings(
+                    session,
+                    guild_id=guild_id,
+                )
+
+            if settings is None:
+                await ctx.respond(
+                    embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.setup_required")),
+                    flags=hikari.MessageFlag.EPHEMERAL,
+                )
+                return
+
+            locale = settings.locale
+            if (
+                settings.settings_channel_id != channel_id
+                or settings.settings_message_id != message_id
+            ):
+                await ctx.respond(
+                    embed=build_panel_error_embed(t(locale, "errors.settings_stale")),
+                    flags=hikari.MessageFlag.EPHEMERAL,
+                )
+                return
+
+            await ctx.respond_with_modal(
+                ChannelNamesModal(guild_id=guild_id, locale=locale)
+            )
+        except Exception:
+            LOGGER.exception("Failed to open channel names modal in guild %s", guild_id)
+            await ctx.respond(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.settings_control_failed")),
+                flags=hikari.MessageFlag.EPHEMERAL,
+            )
+
     @miru.button(
         label="Support role",
         style=hikari.ButtonStyle.SECONDARY,
@@ -375,6 +435,19 @@ class SettingsPanelView(miru.View):
             ctx,
             control="language",
         )
+
+    @miru.button(
+        label="Names",
+        style=hikari.ButtonStyle.SECONDARY,
+        custom_id=SETTINGS_CHANNEL_NAMES_BUTTON_CUSTOM_ID,
+    )
+    async def open_channel_names_modal(
+        self,
+        ctx: miru.ViewContext,
+        button: miru.Button,
+    ) -> None:
+        del button
+        await self._open_channel_names_modal(ctx)
 
 
 class SettingsSupportRoleSelectView(miru.View):
@@ -490,7 +563,12 @@ class SettingsSupportRoleSelectView(miru.View):
                 logs_channel_id=settings.logs_channel_id,
                 event_type="support_role_assigned",
                 actor_id=int(ctx.user.id),
-                description=f"Support role changed to <@&{role_id}>.",
+                description=t(
+                    settings.locale,
+                    "logs.support_role_assigned_description",
+                    role_id=role_id,
+                ),
+                locale=settings.locale,
             )
             await ctx.edit_response(
                 embed=build_support_role_updated_embed(role_id, locale=settings.locale)
@@ -602,7 +680,12 @@ class SettingsLanguageSelectView(miru.View):
                 logs_channel_id=result.settings.logs_channel_id,
                 event_type="language_updated",
                 actor_id=int(ctx.user.id),
-                description=f"Ticket system language changed to `{result.new_locale}`.",
+                description=t(
+                    result.new_locale,
+                    "logs.language_updated_description",
+                    locale=result.new_locale,
+                ),
+                locale=result.new_locale,
             )
             await ctx.edit_response(embed=build_language_updated_embed(result.new_locale))
         except Exception:

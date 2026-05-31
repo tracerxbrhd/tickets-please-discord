@@ -40,6 +40,15 @@ class LocaleUpdateResult:
     support_roles: list[SupportRole]
 
 
+@dataclass(slots=True)
+class ChannelNamesUpdateResult:
+    """Result of updating saved channel/category names."""
+
+    settings: GuildSettings
+    support_roles: list[SupportRole]
+    changed_fields: set[str]
+
+
 class SettingsService:
     """Service API for guild-level ticket settings."""
 
@@ -125,6 +134,42 @@ class SettingsService:
             old_locale=old_locale,
             new_locale=new_locale,
             support_roles=support_roles,
+        )
+
+    async def set_channel_names(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        category_name: str | None = None,
+        support_channel_name: str | None = None,
+        logs_channel_name: str | None = None,
+        settings_channel_name: str | None = None,
+    ) -> ChannelNamesUpdateResult | None:
+        """Update saved Discord channel/category names for a guild."""
+
+        settings = await self._settings_repository.get_by_guild_id(session, guild_id)
+        if settings is None:
+            return None
+
+        fields: dict[str, str] = {}
+        if category_name is not None:
+            fields["category_name"] = category_name
+        if support_channel_name is not None:
+            fields["support_channel_name"] = support_channel_name
+        if logs_channel_name is not None:
+            fields["logs_channel_name"] = logs_channel_name
+        if settings_channel_name is not None:
+            fields["settings_channel_name"] = settings_channel_name
+
+        if fields:
+            settings = await self._settings_repository.update(session, settings, **fields)
+
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        return ChannelNamesUpdateResult(
+            settings=settings,
+            support_roles=support_roles,
+            changed_fields=set(fields),
         )
 
     async def reset_settings(

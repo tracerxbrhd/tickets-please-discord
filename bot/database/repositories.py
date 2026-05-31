@@ -48,6 +48,10 @@ class GuildSettingsRepository:
         support_message_id: int | None = None,
         settings_message_id: int | None = None,
         locale: str = "en",
+        category_name: str = "Tickets! Please",
+        support_channel_name: str = "support",
+        logs_channel_name: str = "tickets-logs",
+        settings_channel_name: str = "tickets-settings",
         is_enabled: bool = True,
     ) -> GuildSettings:
         settings = GuildSettings(
@@ -59,6 +63,10 @@ class GuildSettingsRepository:
             support_message_id=support_message_id,
             settings_message_id=settings_message_id,
             locale=locale,
+            category_name=category_name,
+            support_channel_name=support_channel_name,
+            logs_channel_name=logs_channel_name,
+            settings_channel_name=settings_channel_name,
             is_enabled=is_enabled,
         )
         session.add(settings)

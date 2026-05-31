@@ -2,5 +2,6 @@
 
 SETTINGS_SUPPORT_ROLE_BUTTON_CUSTOM_ID = "tickets_please:settings:open_support_role"
 SETTINGS_LANGUAGE_BUTTON_CUSTOM_ID = "tickets_please:settings:open_language"
+SETTINGS_CHANNEL_NAMES_BUTTON_CUSTOM_ID = "tickets_please:settings:open_channel_names"
 SETTINGS_SUPPORT_ROLE_SELECT_CUSTOM_ID = "tickets_please:settings:support_role"
 SETTINGS_LANGUAGE_SELECT_CUSTOM_ID = "tickets_please:settings:language"

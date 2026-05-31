@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 
 import hikari
 import lightbulb
@@ -11,8 +12,9 @@ import miru
 
 from bot.config import Settings, get_settings
 from bot.database.session import Database
+from bot.i18n import DEFAULT_LOCALE
 from bot.logging import configure_logging
-from bot.runtime import Runtime, set_runtime
+from bot.runtime import Runtime, get_runtime, set_runtime
 from bot.services.logging_service import LoggingService
 from bot.services.permissions_service import PermissionsService
 from bot.services.settings_service import SettingsService
@@ -40,7 +42,11 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
     token = settings.discord_token.get_secret_value()
     database = Database(str(settings.database_url))
 
-    intents = hikari.Intents.GUILDS | hikari.Intents.GUILD_MESSAGES
+    intents = (
+        hikari.Intents.GUILDS
+        | hikari.Intents.GUILD_MESSAGES
+        | hikari.Intents.MESSAGE_CONTENT
+    )
     bot = hikari.GatewayBot(token=token, intents=intents)
     miru_client = miru.Client(bot)
     client = lightbulb.client_from_app(
@@ -65,6 +71,7 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
     @bot.listen(hikari.StartingEvent)
     async def prepare_services(_: hikari.StartingEvent) -> None:
         await client.load_extensions("bot.extensions.tickets_commands")
+        await client.load_extensions("bot.extensions.utility_commands")
 
     @bot.listen(hikari.StartedEvent)
     async def start_command_client(_: hikari.StartedEvent) -> None:
@@ -76,6 +83,55 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
         miru_client.start_view(TicketThreadView(), bind_to=None)
         LOGGER.info("Lightbulb command client started")
 
+    @bot.listen(hikari.MessageCreateEvent)
+    async def mirror_claimed_ticket_message(event: hikari.MessageCreateEvent) -> None:
+        if event.guild_id is None:
+            return
+
+        message = event.message
+        author = getattr(message, "author", None)
+        if author is None or getattr(author, "is_bot", False):
+            return
+
+        raw_content = getattr(message, "content", "") or ""
+        content = "" if raw_content is hikari.UNDEFINED else str(raw_content)
+        raw_attachments = getattr(message, "attachments", ()) or ()
+        if raw_attachments is hikari.UNDEFINED:
+            raw_attachments = ()
+        attachments = list(raw_attachments)
+        if not content.strip() and not attachments:
+            return
+
+        guild_id = int(event.guild_id)
+        author_id = int(author.id)
+        thread_id = int(message.channel_id)
+        try:
+            async with database.session() as session:
+                context = await get_runtime().ticket_service.get_message_log_context(
+                    session,
+                    guild_id=guild_id,
+                    thread_id=thread_id,
+                    author_id=author_id,
+                )
+            if context is None:
+                return
+
+            locale = context.settings.locale if context.settings else DEFAULT_LOCALE
+            await get_runtime().logging_service.send_ticket_message(
+                bot.rest,
+                ticket=context.ticket,
+                guild_id=guild_id,
+                author_id=author_id,
+                author_name=getattr(author, "username", ""),
+                content=content,
+                attachment_names=_attachment_names(attachments),
+                message_id=int(message.id),
+                created_at=getattr(message, "created_at", None) or datetime.now(UTC),
+                locale=locale,
+            )
+        except Exception:
+            LOGGER.exception("Failed to mirror ticket message in guild %s", guild_id)
+
     @bot.listen(hikari.StoppingEvent)
     async def stop_services(_: hikari.StoppingEvent) -> None:
         LOGGER.info("Stopping Lightbulb command client")
@@ -85,6 +141,15 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
         await database.dispose()
 
     return bot
+
+
+def _attachment_names(attachments: list[object]) -> list[str]:
+    names: list[str] = []
+    for attachment in attachments:
+        filename = str(getattr(attachment, "filename", "attachment"))
+        url = getattr(attachment, "url", None)
+        names.append(f"[{filename}]({url})" if url else filename)
+    return names
 
 
 async def wait_for_dependencies(settings: Settings) -> None:

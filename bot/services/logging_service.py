@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import hikari
 
@@ -14,6 +14,7 @@ from bot.ui.embeds import (
     build_ticket_claimed_log_embed,
     build_ticket_closed_log_embed,
     build_ticket_created_log_embed,
+    build_ticket_message_log_embed,
 )
 from bot.utils.formatters import ticket_log_thread_name
 
@@ -31,6 +32,7 @@ class LoggingService:
         event_type: str,
         actor_id: int,
         description: str,
+        locale: str = DEFAULT_LOCALE,
     ) -> None:
         """Send a non-blocking log event when a logs channel is available."""
 
@@ -44,6 +46,7 @@ class LoggingService:
                     event_type=event_type,
                     actor_id=actor_id,
                     description=description,
+                    locale=locale,
                 ),
             )
         except hikari.NotFoundError:
@@ -166,3 +169,47 @@ class LoggingService:
             LOGGER.warning("Missing permission to write to ticket log thread %s", target_channel_id)
         except hikari.BadRequestError:
             LOGGER.warning("Discord rejected ticket-closed log for ticket %s", ticket.id)
+
+    async def send_ticket_message(
+        self,
+        rest: hikari.api.RESTClient,
+        *,
+        ticket: Ticket,
+        guild_id: int,
+        author_id: int,
+        author_name: str,
+        content: str,
+        attachment_names: list[str],
+        message_id: int,
+        created_at: datetime,
+        locale: str = DEFAULT_LOCALE,
+    ) -> None:
+        """Mirror a claimed ticket participant message into the ticket log thread."""
+
+        if ticket.log_thread_id is None:
+            return
+
+        try:
+            await rest.create_message(
+                ticket.log_thread_id,
+                embed=build_ticket_message_log_embed(
+                    ticket,
+                    guild_id=guild_id,
+                    author_id=author_id,
+                    author_name=author_name,
+                    content=content,
+                    attachment_names=attachment_names,
+                    message_id=message_id,
+                    created_at=created_at,
+                    locale=locale,
+                ),
+            )
+        except hikari.NotFoundError:
+            LOGGER.warning("Configured ticket log thread %s was not found", ticket.log_thread_id)
+        except hikari.ForbiddenError:
+            LOGGER.warning(
+                "Missing permission to write to ticket log thread %s",
+                ticket.log_thread_id,
+            )
+        except hikari.BadRequestError:
+            LOGGER.warning("Discord rejected ticket-message log for ticket %s", ticket.id)
