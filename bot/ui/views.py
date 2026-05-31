@@ -13,14 +13,19 @@ from bot.i18n import DEFAULT_LOCALE, available_languages, normalize_locale, t
 from bot.ui.embeds import (
     build_language_updated_embed,
     build_panel_error_embed,
+    build_settings_control_embed,
     build_settings_panel_embed,
     build_support_panel_embed,
     build_support_role_updated_embed,
+    build_ticket_claimed_response_embed,
+    build_ticket_thread_embed,
     build_user_tickets_embed,
 )
 from bot.ui.modals import TicketCloseConfirmModal, TicketCreateModal
 from bot.ui.selects import (
+    SETTINGS_LANGUAGE_BUTTON_CUSTOM_ID,
     SETTINGS_LANGUAGE_SELECT_CUSTOM_ID,
+    SETTINGS_SUPPORT_ROLE_BUTTON_CUSTOM_ID,
     SETTINGS_SUPPORT_ROLE_SELECT_CUSTOM_ID,
 )
 from bot.utils.permissions import member_permissions, member_role_ids
@@ -29,6 +34,7 @@ LOGGER = logging.getLogger(__name__)
 
 SUPPORT_CREATE_TICKET_CUSTOM_ID = "tickets_please:support:create_ticket"
 SUPPORT_MY_TICKETS_CUSTOM_ID = "tickets_please:support:my_tickets"
+TICKET_CLAIM_CUSTOM_ID = "tickets_please:ticket:claim"
 TICKET_CLOSE_CUSTOM_ID = "tickets_please:ticket:close"
 
 
@@ -51,6 +57,20 @@ def build_settings_panel_components(
 ) -> Sequence[hikari.api.ComponentBuilder]:
     """Build component rows for the settings panel message."""
     return SettingsPanelView(locale).build()
+
+
+def build_settings_support_role_select_components(
+    locale: str = DEFAULT_LOCALE,
+) -> Sequence[hikari.api.ComponentBuilder]:
+    """Build component rows for the support-role settings prompt."""
+    return SettingsSupportRoleSelectView(locale).build()
+
+
+def build_settings_language_select_components(
+    locale: str = DEFAULT_LOCALE,
+) -> Sequence[hikari.api.ComponentBuilder]:
+    """Build component rows for the language settings prompt."""
+    return SettingsLanguageSelectView(locale).build()
 
 
 def _language_options() -> list[miru.SelectOption]:
@@ -225,19 +245,19 @@ class SupportPanelView(miru.View):
 
 
 class SettingsPanelView(miru.View):
-    """Unbound persistent view for ticket settings controls."""
+    """Unbound persistent view for the settings summary message."""
 
     def __init__(self, locale: str = DEFAULT_LOCALE) -> None:
         super().__init__(timeout=None, autodefer=False)
         locale = normalize_locale(locale)
         for item in self.children:
             custom_id = getattr(item, "custom_id", None)
-            if custom_id == SETTINGS_SUPPORT_ROLE_SELECT_CUSTOM_ID:
-                role_select = cast(miru.RoleSelect, item)
-                role_select.placeholder = t(locale, "selects.support_role")
-            elif custom_id == SETTINGS_LANGUAGE_SELECT_CUSTOM_ID:
-                text_select = cast(miru.TextSelect, item)
-                text_select.placeholder = t(locale, "selects.language")
+            if custom_id == SETTINGS_SUPPORT_ROLE_BUTTON_CUSTOM_ID:
+                button = cast(miru.Button, item)
+                button.label = t(locale, "buttons.change_support_role")
+            elif custom_id == SETTINGS_LANGUAGE_BUTTON_CUSTOM_ID:
+                button = cast(miru.Button, item)
+                button.label = t(locale, "buttons.change_language")
 
     async def _settings_ids(self, ctx: miru.ViewContext) -> tuple[int, int, int] | None:
         guild_id = ctx.guild_id
@@ -257,6 +277,117 @@ class SettingsPanelView(miru.View):
 
         return int(guild_id), int(ctx.channel_id), int(ctx.message.id)
 
+    async def _open_settings_control(
+        self,
+        ctx: miru.ViewContext,
+        *,
+        control: str,
+    ) -> None:
+        settings_ids = await self._settings_ids(ctx)
+        if settings_ids is None:
+            return
+
+        guild_id, channel_id, message_id = settings_ids
+        permissions = member_permissions(getattr(ctx, "member", None))
+        if not permissions & (hikari.Permissions.ADMINISTRATOR | hikari.Permissions.MANAGE_GUILD):
+            await ctx.respond(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.settings_permission")),
+                flags=hikari.MessageFlag.EPHEMERAL,
+            )
+            return
+
+        from bot.runtime import get_runtime
+
+        runtime = get_runtime()
+        try:
+            async with runtime.database.session() as session:
+                settings = await runtime.settings_service.get_settings(
+                    session,
+                    guild_id=guild_id,
+                )
+
+            if settings is None:
+                await ctx.respond(
+                    embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.setup_required")),
+                    flags=hikari.MessageFlag.EPHEMERAL,
+                )
+                return
+
+            locale = settings.locale
+            if (
+                settings.settings_channel_id != channel_id
+                or settings.settings_message_id != message_id
+            ):
+                await ctx.respond(
+                    embed=build_panel_error_embed(t(locale, "errors.settings_stale")),
+                    flags=hikari.MessageFlag.EPHEMERAL,
+                )
+                return
+
+            await ctx.respond(
+                embed=build_settings_control_embed(
+                    title=t(locale, f"settings.{control}_prompt_title"),
+                    description=t(locale, f"settings.{control}_prompt_description"),
+                    locale=locale,
+                ),
+                components=(
+                    build_settings_support_role_select_components(locale)
+                    if control == "support_role"
+                    else build_settings_language_select_components(locale)
+                ),
+                flags=hikari.MessageFlag.EPHEMERAL,
+            )
+        except Exception:
+            LOGGER.exception("Failed to open settings control in guild %s", guild_id)
+            await ctx.respond(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.settings_control_failed")),
+                flags=hikari.MessageFlag.EPHEMERAL,
+            )
+
+    @miru.button(
+        label="Support role",
+        style=hikari.ButtonStyle.SECONDARY,
+        custom_id=SETTINGS_SUPPORT_ROLE_BUTTON_CUSTOM_ID,
+    )
+    async def open_support_role_select(
+        self,
+        ctx: miru.ViewContext,
+        button: miru.Button,
+    ) -> None:
+        del button
+        await self._open_settings_control(
+            ctx,
+            control="support_role",
+        )
+
+    @miru.button(
+        label="Language",
+        style=hikari.ButtonStyle.SECONDARY,
+        custom_id=SETTINGS_LANGUAGE_BUTTON_CUSTOM_ID,
+    )
+    async def open_language_select(
+        self,
+        ctx: miru.ViewContext,
+        button: miru.Button,
+    ) -> None:
+        del button
+        await self._open_settings_control(
+            ctx,
+            control="language",
+        )
+
+
+class SettingsSupportRoleSelectView(miru.View):
+    """Persistent view for ephemeral support-role settings prompts."""
+
+    def __init__(self, locale: str = DEFAULT_LOCALE) -> None:
+        super().__init__(timeout=None, autodefer=False)
+        locale = normalize_locale(locale)
+        for item in self.children:
+            if getattr(item, "custom_id", None) == SETTINGS_SUPPORT_ROLE_SELECT_CUSTOM_ID:
+                role_select = cast(miru.RoleSelect, item)
+                role_select.placeholder = t(locale, "selects.support_role")
+
     @miru.role_select(
         placeholder="Select support role",
         min_values=1,
@@ -268,11 +399,15 @@ class SettingsPanelView(miru.View):
         ctx: miru.ViewContext,
         select: miru.RoleSelect,
     ) -> None:
-        settings_ids = await self._settings_ids(ctx)
-        if settings_ids is None:
+        guild_id = ctx.guild_id
+        if guild_id is None:
+            await ctx.respond(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.server_only")),
+                flags=hikari.MessageFlag.EPHEMERAL,
+            )
             return
+        guild_id_int = int(guild_id)
 
-        guild_id, channel_id, message_id = settings_ids
         await ctx.defer(
             hikari.ResponseType.DEFERRED_MESSAGE_CREATE,
             flags=hikari.MessageFlag.EPHEMERAL,
@@ -286,7 +421,7 @@ class SettingsPanelView(miru.View):
             return
 
         role_id = int(getattr(selected_role, "id", selected_role))
-        if role_id == guild_id:
+        if role_id == guild_id_int:
             await ctx.edit_response(
                 embed=build_panel_error_embed(
                     t(DEFAULT_LOCALE, "errors.everyone_role")
@@ -310,7 +445,7 @@ class SettingsPanelView(miru.View):
             async with runtime.database.session() as session:
                 settings = await runtime.settings_service.get_settings(
                     session,
-                    guild_id=guild_id,
+                    guild_id=guild_id_int,
                 )
                 if settings is None:
                     await ctx.edit_response(
@@ -321,34 +456,29 @@ class SettingsPanelView(miru.View):
                     return
                 locale = settings.locale
 
-                if (
-                    settings.settings_channel_id != channel_id
-                    or settings.settings_message_id != message_id
-                ):
-                    await ctx.edit_response(
-                        embed=build_panel_error_embed(
-                            t(locale, "errors.settings_stale")
-                        )
-                    )
-                    return
-
                 result = await runtime.settings_service.set_support_role(
                     session,
-                    guild_id=guild_id,
+                    guild_id=guild_id_int,
                     role_id=role_id,
                 )
                 await runtime.permissions_service.apply_support_roles(
                     session,
                     runtime.bot.rest,
-                    guild_id=guild_id,
+                    guild_id=guild_id_int,
                     settings=settings,
                     old_role_ids=result.old_role_ids,
                     new_role_ids=result.new_role_ids,
                 )
 
+            if settings.settings_channel_id is None or settings.settings_message_id is None:
+                await ctx.edit_response(
+                    embed=build_panel_error_embed(t(locale, "errors.settings_message_missing"))
+                )
+                return
+
             await runtime.bot.rest.edit_message(
-                channel_id,
-                message_id,
+                settings.settings_channel_id,
+                settings.settings_message_id,
                 embed=build_settings_panel_embed(
                     settings,
                     support_roles=result.support_roles,
@@ -366,12 +496,24 @@ class SettingsPanelView(miru.View):
                 embed=build_support_role_updated_embed(role_id, locale=settings.locale)
             )
         except Exception:
-            LOGGER.exception("Failed to update support role in guild %s", guild_id)
+            LOGGER.exception("Failed to update support role in guild %s", guild_id_int)
             await ctx.edit_response(
                 embed=build_panel_error_embed(
                     t(DEFAULT_LOCALE, "errors.support_role_update_failed")
                 )
             )
+
+
+class SettingsLanguageSelectView(miru.View):
+    """Persistent view for ephemeral language settings prompts."""
+
+    def __init__(self, locale: str = DEFAULT_LOCALE) -> None:
+        super().__init__(timeout=None, autodefer=False)
+        locale = normalize_locale(locale)
+        for item in self.children:
+            if getattr(item, "custom_id", None) == SETTINGS_LANGUAGE_SELECT_CUSTOM_ID:
+                text_select = cast(miru.TextSelect, item)
+                text_select.placeholder = t(locale, "selects.language")
 
     @miru.text_select(
         placeholder="Select language",
@@ -385,11 +527,15 @@ class SettingsPanelView(miru.View):
         ctx: miru.ViewContext,
         select: miru.TextSelect,
     ) -> None:
-        settings_ids = await self._settings_ids(ctx)
-        if settings_ids is None:
+        guild_id = ctx.guild_id
+        if guild_id is None:
+            await ctx.respond(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.server_only")),
+                flags=hikari.MessageFlag.EPHEMERAL,
+            )
             return
+        guild_id_int = int(guild_id)
 
-        guild_id, channel_id, message_id = settings_ids
         await ctx.defer(
             hikari.ResponseType.DEFERRED_MESSAGE_CREATE,
             flags=hikari.MessageFlag.EPHEMERAL,
@@ -411,7 +557,7 @@ class SettingsPanelView(miru.View):
             async with runtime.database.session() as session:
                 settings = await runtime.settings_service.get_settings(
                     session,
-                    guild_id=guild_id,
+                    guild_id=guild_id_int,
                 )
                 if settings is None:
                     await ctx.edit_response(
@@ -419,18 +565,9 @@ class SettingsPanelView(miru.View):
                     )
                     return
 
-                if (
-                    settings.settings_channel_id != channel_id
-                    or settings.settings_message_id != message_id
-                ):
-                    await ctx.edit_response(
-                        embed=build_panel_error_embed(t(settings.locale, "errors.settings_stale"))
-                    )
-                    return
-
                 result = await runtime.settings_service.set_locale(
                     session,
-                    guild_id=guild_id,
+                    guild_id=guild_id_int,
                     locale=selected_locale,
                 )
                 if result is None:
@@ -439,9 +576,20 @@ class SettingsPanelView(miru.View):
                     )
                     return
 
+            if (
+                result.settings.settings_channel_id is None
+                or result.settings.settings_message_id is None
+            ):
+                await ctx.edit_response(
+                    embed=build_panel_error_embed(
+                        t(result.new_locale, "errors.settings_message_missing")
+                    )
+                )
+                return
+
             await runtime.bot.rest.edit_message(
-                channel_id,
-                message_id,
+                result.settings.settings_channel_id,
+                result.settings.settings_message_id,
                 embed=build_settings_panel_embed(
                     result.settings,
                     support_roles=result.support_roles,
@@ -458,7 +606,7 @@ class SettingsPanelView(miru.View):
             )
             await ctx.edit_response(embed=build_language_updated_embed(result.new_locale))
         except Exception:
-            LOGGER.exception("Failed to update language in guild %s", guild_id)
+            LOGGER.exception("Failed to update language in guild %s", guild_id_int)
             await ctx.edit_response(
                 embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.language_update_failed"))
             )
@@ -492,7 +640,10 @@ class TicketThreadView(miru.View):
         super().__init__(timeout=None, autodefer=False)
         locale = normalize_locale(locale)
         for item in self.children:
-            if getattr(item, "custom_id", None) == TICKET_CLOSE_CUSTOM_ID:
+            if getattr(item, "custom_id", None) == TICKET_CLAIM_CUSTOM_ID:
+                button = cast(miru.Button, item)
+                button.label = t(locale, "buttons.claim_ticket")
+            elif getattr(item, "custom_id", None) == TICKET_CLOSE_CUSTOM_ID:
                 button = cast(miru.Button, item)
                 button.label = t(locale, "buttons.close_ticket")
 
@@ -513,6 +664,79 @@ class TicketThreadView(miru.View):
             return None
 
         return int(guild_id), int(ctx.channel_id), int(ctx.message.id)
+
+    @miru.button(
+        label="Take ticket",
+        style=hikari.ButtonStyle.SUCCESS,
+        custom_id=TICKET_CLAIM_CUSTOM_ID,
+    )
+    async def claim_ticket(
+        self,
+        ctx: miru.ViewContext,
+        button: miru.Button,
+    ) -> None:
+        del button
+
+        thread_ids = await self._thread_ids(ctx)
+        if thread_ids is None:
+            return
+
+        guild_id, thread_id, ticket_message_id = thread_ids
+        await ctx.defer(
+            hikari.ResponseType.DEFERRED_MESSAGE_CREATE,
+            flags=hikari.MessageFlag.EPHEMERAL,
+        )
+
+        from bot.runtime import get_runtime
+
+        runtime = get_runtime()
+        member = getattr(ctx, "member", None)
+        try:
+            async with runtime.database.session() as session:
+                result = await runtime.ticket_service.claim_ticket(
+                    session,
+                    guild_id=guild_id,
+                    thread_id=thread_id,
+                    actor_id=int(ctx.user.id),
+                    actor_role_ids=member_role_ids(member),
+                    actor_permissions=member_permissions(member),
+                )
+
+            if not result.validation.is_valid or result.ticket is None:
+                await ctx.edit_response(
+                    embed=build_panel_error_embed(
+                        result.validation.reason or t(DEFAULT_LOCALE, "errors.ticket_unavailable")
+                    ),
+                )
+                return
+
+            locale = (
+                result.validation.settings.locale
+                if result.validation.settings
+                else DEFAULT_LOCALE
+            )
+            await runtime.bot.rest.edit_message(
+                thread_id,
+                ticket_message_id,
+                embed=build_ticket_thread_embed(result.ticket, locale=locale),
+                components=build_ticket_thread_components(locale),
+            )
+            await runtime.logging_service.send_ticket_claimed(
+                runtime.bot.rest,
+                logs_channel_id=result.validation.settings.logs_channel_id
+                if result.validation.settings
+                else None,
+                ticket=result.ticket,
+                locale=locale,
+            )
+            await ctx.edit_response(
+                embed=build_ticket_claimed_response_embed(result.ticket, locale=locale),
+            )
+        except Exception:
+            LOGGER.exception("Failed to handle claim-ticket button in guild %s", guild_id)
+            await ctx.edit_response(
+                embed=build_panel_error_embed(t(DEFAULT_LOCALE, "errors.claim_failed")),
+            )
 
     @miru.button(
         label="Close ticket",

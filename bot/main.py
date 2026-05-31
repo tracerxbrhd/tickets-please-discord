@@ -18,7 +18,13 @@ from bot.services.permissions_service import PermissionsService
 from bot.services.settings_service import SettingsService
 from bot.services.setup_service import SetupService
 from bot.services.ticket_service import TicketService
-from bot.ui.views import SettingsPanelView, SupportPanelView, TicketThreadView
+from bot.ui.views import (
+    SettingsLanguageSelectView,
+    SettingsPanelView,
+    SettingsSupportRoleSelectView,
+    SupportPanelView,
+    TicketThreadView,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +71,8 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
         await client.start()
         miru_client.start_view(SupportPanelView(), bind_to=None)
         miru_client.start_view(SettingsPanelView(), bind_to=None)
+        miru_client.start_view(SettingsSupportRoleSelectView(), bind_to=None)
+        miru_client.start_view(SettingsLanguageSelectView(), bind_to=None)
         miru_client.start_view(TicketThreadView(), bind_to=None)
         LOGGER.info("Lightbulb command client started")
 

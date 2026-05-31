@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hikari
 
-
 SETUP_USER_PERMISSIONS = hikari.Permissions.MANAGE_GUILD
 SETUP_BOT_PERMISSIONS = (
     hikari.Permissions.MANAGE_CHANNELS

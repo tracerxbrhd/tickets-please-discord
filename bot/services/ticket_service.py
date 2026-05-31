@@ -74,10 +74,28 @@ class TicketCloseValidationResult:
 
 
 @dataclass(slots=True)
+class TicketClaimValidationResult:
+    """Validation result for assigning a moderator to a ticket."""
+
+    is_valid: bool
+    reason: str | None = None
+    ticket: Ticket | None = None
+    settings: GuildSettings | None = None
+
+
+@dataclass(slots=True)
 class TicketCloseResult:
     """Result of closing a ticket."""
 
     validation: TicketCloseValidationResult
+    ticket: Ticket | None = None
+
+
+@dataclass(slots=True)
+class TicketClaimResult:
+    """Result of claiming a ticket for moderation work."""
+
+    validation: TicketClaimValidationResult
     ticket: Ticket | None = None
 
 
@@ -259,6 +277,123 @@ class TicketService:
             support_role_ids=support_role_ids,
         )
 
+    async def set_ticket_log_thread(
+        self,
+        session: AsyncSession,
+        *,
+        ticket_id: int,
+        log_thread_id: int,
+    ) -> Ticket | None:
+        """Persist the logs-channel thread linked to a ticket."""
+
+        return await self._ticket_repository.set_log_thread_id(
+            session,
+            ticket_id,
+            log_thread_id=log_thread_id,
+        )
+
+    async def validate_ticket_claim(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        thread_id: int,
+        actor_id: int,
+        actor_role_ids: set[int],
+        actor_permissions: hikari.Permissions,
+    ) -> TicketClaimValidationResult:
+        """Validate that a moderator may claim the ticket for work."""
+
+        ticket = await self._ticket_repository.get_by_thread_id(
+            session,
+            guild_id=guild_id,
+            thread_id=thread_id,
+        )
+        settings = await self._settings_repository.get_by_guild_id(session, guild_id)
+        locale = settings.locale if settings else DEFAULT_LOCALE
+        if ticket is None:
+            return TicketClaimValidationResult(
+                is_valid=False,
+                reason=t(locale, "ticket.thread_not_linked"),
+                settings=settings,
+            )
+
+        if ticket.status == TicketStatus.CLOSED:
+            return TicketClaimValidationResult(
+                is_valid=False,
+                reason=t(locale, "ticket.already_closed"),
+                ticket=ticket,
+                settings=settings,
+            )
+
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        support_role_ids = {role.role_id for role in support_roles}
+        if not self._can_manage_ticket(
+            actor_role_ids=actor_role_ids,
+            support_role_ids=support_role_ids,
+            actor_permissions=actor_permissions,
+        ):
+            return TicketClaimValidationResult(
+                is_valid=False,
+                reason=t(locale, "ticket.claim_forbidden"),
+                ticket=ticket,
+                settings=settings,
+            )
+
+        if ticket.assigned_moderator_id is not None:
+            return TicketClaimValidationResult(
+                is_valid=False,
+                reason=t(
+                    locale,
+                    "ticket.already_claimed",
+                    moderator_id=ticket.assigned_moderator_id,
+                ),
+                ticket=ticket,
+                settings=settings,
+            )
+
+        return TicketClaimValidationResult(is_valid=True, ticket=ticket, settings=settings)
+
+    async def claim_ticket(
+        self,
+        session: AsyncSession,
+        *,
+        guild_id: int,
+        thread_id: int,
+        actor_id: int,
+        actor_role_ids: set[int],
+        actor_permissions: hikari.Permissions,
+    ) -> TicketClaimResult:
+        """Assign the ticket to a moderator and move it to in-progress."""
+
+        validation = await self.validate_ticket_claim(
+            session,
+            guild_id=guild_id,
+            thread_id=thread_id,
+            actor_id=actor_id,
+            actor_role_ids=actor_role_ids,
+            actor_permissions=actor_permissions,
+        )
+        if not validation.is_valid or validation.ticket is None:
+            return TicketClaimResult(validation=validation)
+
+        ticket = await self._ticket_repository.assign_moderator(
+            session,
+            validation.ticket,
+            moderator_id=actor_id,
+        )
+        await self._ticket_event_repository.create(
+            session,
+            ticket_id=ticket.id,
+            event_type=TicketEventType.TICKET_CLAIMED,
+            actor_id=actor_id,
+            payload={
+                "thread_id": ticket.thread_id,
+                "moderator_id": actor_id,
+            },
+        )
+        return TicketClaimResult(validation=validation, ticket=ticket)
+
     async def validate_ticket_close(
         self,
         session: AsyncSession,
@@ -327,6 +462,7 @@ class TicketService:
         actor_id: int,
         actor_role_ids: set[int],
         actor_permissions: hikari.Permissions,
+        close_reason: str,
     ) -> TicketCloseResult:
         """Close a ticket permanently in the database."""
 
@@ -345,13 +481,17 @@ class TicketService:
             session,
             validation.ticket,
             closed_by_id=actor_id,
+            close_reason=close_reason,
         )
         await self._ticket_event_repository.create(
             session,
             ticket_id=ticket.id,
             event_type=TicketEventType.TICKET_CLOSED,
             actor_id=actor_id,
-            payload={"thread_id": ticket.thread_id},
+            payload={
+                "thread_id": ticket.thread_id,
+                "reason": close_reason,
+            },
         )
         return TicketCloseResult(validation=validation, ticket=ticket)
 
@@ -484,6 +624,23 @@ class TicketService:
     ) -> bool:
         if actor_id == ticket.user_id:
             return True
+        if actor_permissions & hikari.Permissions.ADMINISTRATOR:
+            return True
+        if self._can_manage_ticket(
+            actor_role_ids=actor_role_ids,
+            support_role_ids=support_role_ids,
+            actor_permissions=actor_permissions,
+        ):
+            return True
+        return bool(actor_role_ids & support_role_ids)
+
+    def _can_manage_ticket(
+        self,
+        *,
+        actor_role_ids: set[int],
+        support_role_ids: set[int],
+        actor_permissions: hikari.Permissions,
+    ) -> bool:
         if actor_permissions & hikari.Permissions.ADMINISTRATOR:
             return True
         if actor_permissions & (

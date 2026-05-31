@@ -70,3 +70,10 @@ def ticket_thread_name(ticket_number: int, title: str) -> str:
 
     title_slug = slugify_channel_name(title, fallback="request", max_length=50)
     return f"ticket-{ticket_number}-{title_slug}"
+
+
+def ticket_log_thread_name(ticket_number: int, title: str) -> str:
+    """Build a logs-channel thread name for one ticket."""
+
+    title_slug = slugify_channel_name(title, fallback="log", max_length=45)
+    return f"ticket-{ticket_number}-log-{title_slug}"

@@ -140,6 +140,23 @@ def build_language_updated_embed(locale: str) -> hikari.Embed:
     )
 
 
+def build_settings_control_embed(
+    *,
+    title: str,
+    description: str,
+    locale: str = DEFAULT_LOCALE,
+) -> hikari.Embed:
+    """Build an ephemeral settings control prompt."""
+
+    del locale
+    return hikari.Embed(
+        title=title,
+        description=description,
+        color=BRAND_COLOR,
+        timestamp=datetime.now(UTC),
+    )
+
+
 def build_setup_summary_embed(result: SetupResult) -> hikari.Embed:
     """Build an ephemeral command response describing setup changes."""
 
@@ -306,6 +323,15 @@ def build_ticket_thread_embed(ticket: Ticket, *, locale: str = DEFAULT_LOCALE) -
         .add_field(t(locale, "ticket.status"), f"`{ticket.status.value}`", inline=True)
         .add_field(t(locale, "ticket.author"), f"<@{ticket.user_id}>", inline=True)
         .add_field(
+            t(locale, "ticket.assigned_to"),
+            (
+                f"<@{ticket.assigned_moderator_id}>"
+                if ticket.assigned_moderator_id is not None
+                else t(locale, "common.not_configured")
+            ),
+            inline=True,
+        )
+        .add_field(
             t(locale, "ticket.files"),
             t(locale, "ticket.files_hint"),
             inline=False,
@@ -332,6 +358,11 @@ def build_ticket_closed_thread_embed(
         .add_field(t(locale, "ticket.subject"), ticket.title, inline=False)
         .add_field(t(locale, "ticket.closed_by"), f"<@{ticket.closed_by_id}>", inline=True)
         .add_field(t(locale, "ticket.closed_at"), discord_timestamp(ticket.closed_at), inline=True)
+        .add_field(
+            t(locale, "ticket.close_reason"),
+            _trim_embed_text(ticket.close_reason or t(locale, "common.none"), limit=900),
+            inline=False,
+        )
         .set_footer("Tickets! Please")
     )
 
@@ -359,6 +390,35 @@ def build_ticket_created_response_embed(
             timestamp=datetime.now(UTC),
         )
         .add_field(t(locale, "ticket.subject"), ticket.title, inline=False)
+        .add_field(t(locale, "ticket.status"), f"`{ticket.status.value}`", inline=True)
+    )
+
+
+def build_ticket_claimed_response_embed(
+    ticket: Ticket,
+    *,
+    locale: str = DEFAULT_LOCALE,
+) -> hikari.Embed:
+    """Build the ephemeral response after a moderator claims a ticket."""
+
+    locale = normalize_locale(locale)
+    return (
+        hikari.Embed(
+            title=t(locale, "ticket.claimed_title"),
+            description=t(
+                locale,
+                "ticket.claimed_response",
+                number=ticket.ticket_number,
+            ),
+            color=SUCCESS_COLOR,
+            timestamp=datetime.now(UTC),
+        )
+        .add_field(t(locale, "ticket.subject"), ticket.title, inline=False)
+        .add_field(
+            t(locale, "ticket.assigned_to"),
+            f"<@{ticket.assigned_moderator_id}>",
+            inline=True,
+        )
         .add_field(t(locale, "ticket.status"), f"`{ticket.status.value}`", inline=True)
     )
 
@@ -391,6 +451,11 @@ def build_ticket_closed_response_embed(
         )
         .add_field(t(locale, "ticket.subject"), ticket.title, inline=False)
         .add_field(t(locale, "ticket.status"), f"`{ticket.status.value}`", inline=True)
+        .add_field(
+            t(locale, "ticket.close_reason"),
+            _trim_embed_text(ticket.close_reason or t(locale, "common.none"), limit=900),
+            inline=False,
+        )
     )
 
 
@@ -423,6 +488,35 @@ def build_ticket_created_log_embed(
     )
 
 
+def build_ticket_claimed_log_embed(
+    ticket: Ticket,
+    *,
+    locale: str = DEFAULT_LOCALE,
+) -> hikari.Embed:
+    """Build a logs-thread embed for a claimed ticket."""
+
+    locale = normalize_locale(locale)
+    return (
+        hikari.Embed(
+            title=t(locale, "logs.ticket_claimed_title"),
+            description=t(
+                locale,
+                "logs.ticket_claimed_description",
+                number=ticket.ticket_number,
+            ),
+            color=SUCCESS_COLOR,
+            timestamp=datetime.now(UTC),
+        )
+        .add_field(t(locale, "logs.user"), f"<@{ticket.user_id}>", inline=True)
+        .add_field(
+            t(locale, "logs.moderator"),
+            f"<@{ticket.assigned_moderator_id}>",
+            inline=True,
+        )
+        .add_field(t(locale, "ticket.status"), f"`{ticket.status.value}`", inline=True)
+    )
+
+
 def build_ticket_closed_log_embed(
     ticket: Ticket,
     *,
@@ -449,6 +543,11 @@ def build_ticket_closed_log_embed(
         .add_field(t(locale, "logs.moderator"), f"<@{ticket.closed_by_id}>", inline=True)
         .add_field(t(locale, "logs.ticket_id"), str(ticket.id), inline=True)
         .add_field(t(locale, "ticket.closed_at"), discord_timestamp(ticket.closed_at), inline=True)
+        .add_field(
+            t(locale, "ticket.close_reason"),
+            _trim_embed_text(ticket.close_reason or t(locale, "common.none"), limit=900),
+            inline=False,
+        )
         .add_field(t(locale, "logs.title"), ticket.title, inline=False)
     )
 

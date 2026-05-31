@@ -21,6 +21,7 @@ class TicketEventType(StrEnum):
     SETUP_COMPLETED = "setup_completed"
     USER_CHANNEL_CREATED = "user_channel_created"
     TICKET_CREATED = "ticket_created"
+    TICKET_CLAIMED = "ticket_claimed"
     TICKET_CLOSED = "ticket_closed"
     TICKET_STATUS_CHANGED = "ticket_status_changed"
     ATTACHMENT_ADDED = "attachment_added"

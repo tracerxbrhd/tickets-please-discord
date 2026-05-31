@@ -131,6 +131,7 @@ class Ticket(CreatedAtMixin, Base):
     user_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     thread_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    log_thread_id: Mapped[int | None] = mapped_column(BigInteger)
     ticket_number: Mapped[int] = mapped_column(nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -144,6 +145,7 @@ class Ticket(CreatedAtMixin, Base):
     assigned_moderator_id: Mapped[int | None] = mapped_column(BigInteger)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_by_id: Mapped[int | None] = mapped_column(BigInteger)
+    close_reason: Mapped[str | None] = mapped_column(Text)
 
     attachments: Mapped[list[TicketAttachment]] = relationship(
         back_populates="ticket",

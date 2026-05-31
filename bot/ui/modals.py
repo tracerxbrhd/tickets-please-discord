@@ -117,22 +117,16 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                 ticket_embed = build_ticket_thread_embed(result.ticket, locale=locale)
                 ticket_components = build_ticket_thread_components(locale)
 
-                if result.support_role_ids:
-                    await runtime.bot.rest.create_message(
-                        result.ticket.thread_id,
-                        content=" ".join(f"<@&{role_id}>" for role_id in result.support_role_ids),
-                        embed=ticket_embed,
-                        components=ticket_components,
-                        user_mentions=[result.ticket.user_id],
-                        role_mentions=result.support_role_ids,
-                    )
-                else:
-                    await runtime.bot.rest.create_message(
-                        result.ticket.thread_id,
-                        embed=ticket_embed,
-                        components=ticket_components,
-                        user_mentions=[result.ticket.user_id],
-                    )
+                mentions = [f"<@{result.ticket.user_id}>"]
+                mentions.extend(f"<@&{role_id}>" for role_id in result.support_role_ids)
+                await runtime.bot.rest.create_message(
+                    result.ticket.thread_id,
+                    content=" ".join(mentions),
+                    embed=ticket_embed,
+                    components=ticket_components,
+                    user_mentions=[result.ticket.user_id],
+                    role_mentions=result.support_role_ids,
+                )
             except (hikari.ForbiddenError, hikari.NotFoundError, hikari.BadRequestError):
                 LOGGER.exception(
                     "Failed to send first ticket message for ticket %s",
@@ -145,7 +139,7 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                 )
                 return
 
-            await runtime.logging_service.send_ticket_created(
+            log_thread_id = await runtime.logging_service.send_ticket_created(
                 runtime.bot.rest,
                 logs_channel_id=result.validation.settings.logs_channel_id
                 if result.validation.settings
@@ -156,6 +150,16 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                 if result.validation.settings
                 else self._locale,
             )
+            if log_thread_id is not None:
+                async with runtime.database.session() as session:
+                    updated_ticket = await runtime.ticket_service.set_ticket_log_thread(
+                        session,
+                        ticket_id=result.ticket.id,
+                        log_thread_id=log_thread_id,
+                    )
+                if updated_ticket is not None:
+                    result.ticket.log_thread_id = updated_ticket.log_thread_id
+
             if result.user_channel_created:
                 await runtime.logging_service.send_system_event(
                     runtime.bot.rest,
@@ -165,7 +169,7 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
                     event_type="user_channel_created",
                     actor_id=int(ctx.user.id),
                     description=(
-                    "Created private ticket channel "
+                        "Created private ticket channel "
                         f"<#{result.user_channel_id}> for <@{ctx.user.id}>."
                     ),
                 )
@@ -202,13 +206,14 @@ class TicketCreateModal(miru.Modal, title="Create ticket"):
 
 
 class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
-    """Modal used to confirm irreversible ticket closure."""
+    """Modal used to collect the close reason for irreversible ticket closure."""
 
-    confirmation = miru.TextInput(
-        label="Confirmation",
-        placeholder="Type: close",
-        min_length=5,
-        max_length=20,
+    reason = miru.TextInput(
+        label="Close reason",
+        placeholder="Describe why this ticket is being closed",
+        style=hikari.TextInputStyle.PARAGRAPH,
+        min_length=3,
+        max_length=1000,
         required=True,
     )
 
@@ -226,8 +231,8 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
         self._ticket_message_id = ticket_message_id
         self._locale = normalize_locale(locale)
         self.title = t(self._locale, "modals.close_title")
-        self.confirmation.label = t(self._locale, "modals.confirmation")
-        self.confirmation.placeholder = t(self._locale, "modals.confirmation_placeholder")
+        self.reason.label = t(self._locale, "modals.close_reason")
+        self.reason.placeholder = t(self._locale, "modals.close_reason_placeholder")
 
     async def callback(self, ctx: miru.ModalContext) -> None:
         """Close a ticket after explicit user confirmation."""
@@ -237,9 +242,10 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
             flags=hikari.MessageFlag.EPHEMERAL,
         )
 
-        if str(self.confirmation.value or "").strip().casefold() not in {"закрыть", "close"}:
+        close_reason = str(self.reason.value or "").strip()
+        if len(close_reason) < 3:
             await ctx.edit_response(
-                embed=build_panel_error_embed(t(self._locale, "modals.confirmation_mismatch"))
+                embed=build_panel_error_embed(t(self._locale, "modals.close_reason_required"))
             )
             return
 
@@ -256,6 +262,7 @@ class TicketCloseConfirmModal(miru.Modal, title="Close ticket"):
                     actor_id=int(ctx.user.id),
                     actor_role_ids=member_role_ids(member),
                     actor_permissions=member_permissions(member),
+                    close_reason=close_reason,
                 )
 
             if not result.validation.is_valid or result.ticket is None:

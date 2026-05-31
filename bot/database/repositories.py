@@ -196,12 +196,14 @@ class TicketRepository:
         ticket_number: int,
         title: str,
         description: str,
+        log_thread_id: int | None = None,
     ) -> Ticket:
         ticket = Ticket(
             guild_id=guild_id,
             user_id=user_id,
             channel_id=channel_id,
             thread_id=thread_id,
+            log_thread_id=log_thread_id,
             ticket_number=ticket_number,
             title=title,
             description=description,
@@ -298,15 +300,44 @@ class TicketRepository:
         )
         return int(result.scalar_one())
 
+    async def assign_moderator(
+        self,
+        session: AsyncSession,
+        ticket: Ticket,
+        *,
+        moderator_id: int,
+    ) -> Ticket:
+        ticket.assigned_moderator_id = moderator_id
+        ticket.status = TicketStatus.IN_PROGRESS
+        await session.flush()
+        return ticket
+
+    async def set_log_thread_id(
+        self,
+        session: AsyncSession,
+        ticket_id: int,
+        *,
+        log_thread_id: int,
+    ) -> Ticket | None:
+        ticket = await self.get_by_id(session, ticket_id)
+        if ticket is None:
+            return None
+
+        ticket.log_thread_id = log_thread_id
+        await session.flush()
+        return ticket
+
     async def close(
         self,
         session: AsyncSession,
         ticket: Ticket,
         *,
         closed_by_id: int,
+        close_reason: str,
     ) -> Ticket:
         ticket.status = TicketStatus.CLOSED
         ticket.closed_by_id = closed_by_id
+        ticket.close_reason = close_reason
         ticket.closed_at = datetime.now(UTC)
         await session.flush()
         return ticket
