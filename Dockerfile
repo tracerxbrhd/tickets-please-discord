@@ -11,4 +11,6 @@ COPY bot ./bot
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir .
 
-CMD ["python", "-m", "bot.main"]
+COPY scripts/docker-start.sh ./scripts/docker-start.sh
+
+CMD ["sh", "scripts/docker-start.sh"]

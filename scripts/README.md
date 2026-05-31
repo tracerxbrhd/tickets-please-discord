@@ -50,4 +50,6 @@ bash scripts/server.sh stop
 - `backup-db`: write a PostgreSQL custom-format dump to `./backups`.
 
 Both dispatchers block startup when `.env` still contains `replace-with`
-placeholders.
+placeholders. The bot container also runs `alembic upgrade head` before opening
+the Discord gateway, so direct Docker Compose deploys still apply required
+database migrations.
