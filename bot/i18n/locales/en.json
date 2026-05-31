@@ -214,7 +214,7 @@
     "setup_completed_description": "Ticket system channels were created or updated.",
     "settings_reset_description": "Saved configuration was reset. Discord channels were not deleted.",
     "support_role_assigned_description": "Support role changed to <@&{role_id}>.",
-    "language_updated_description": "Ticket system language changed to `{locale}`.",
+    "language_updated_description": "Ticket system language changed to `{language}`.",
     "user_channel_created_description": "Created private ticket channel <#{channel_id}> for <@{user_id}>.",
     "ticket_created_title": "🎫 Ticket created",
     "ticket_created_description": "Ticket `#{number}`: {url}",

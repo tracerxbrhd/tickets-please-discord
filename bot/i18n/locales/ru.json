@@ -214,7 +214,7 @@
     "setup_completed_description": "Каналы тикет-системы созданы или обновлены.",
     "settings_reset_description": "Сохранённая конфигурация сброшена. Discord-каналы не удалялись.",
     "support_role_assigned_description": "Роль поддержки изменена на <@&{role_id}>.",
-    "language_updated_description": "Язык тикет-системы изменён на `{locale}`.",
+    "language_updated_description": "Язык тикет-системы изменён на `{language}`.",
     "user_channel_created_description": "Создан приватный канал тикетов <#{channel_id}> для <@{user_id}>.",
     "ticket_created_title": "🎫 Тикет создан",
     "ticket_created_description": "Тикет `#{number}`: {url}",

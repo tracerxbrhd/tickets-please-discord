@@ -83,11 +83,8 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
         miru_client.start_view(TicketThreadView(), bind_to=None)
         LOGGER.info("Lightbulb command client started")
 
-    @bot.listen(hikari.MessageCreateEvent)
-    async def mirror_claimed_ticket_message(event: hikari.MessageCreateEvent) -> None:
-        if event.guild_id is None:
-            return
-
+    @bot.listen(hikari.GuildMessageCreateEvent)
+    async def mirror_claimed_ticket_message(event: hikari.GuildMessageCreateEvent) -> None:
         message = event.message
         author = getattr(message, "author", None)
         if author is None or getattr(author, "is_bot", False):

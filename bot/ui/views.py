@@ -683,7 +683,7 @@ class SettingsLanguageSelectView(miru.View):
                 description=t(
                     result.new_locale,
                     "logs.language_updated_description",
-                    locale=result.new_locale,
+                    language=result.new_locale,
                 ),
                 locale=result.new_locale,
             )
