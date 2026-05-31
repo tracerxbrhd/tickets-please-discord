@@ -15,7 +15,7 @@ from bot.database.repositories import GuildSettingsRepository, SupportRoleReposi
 from bot.i18n import DEFAULT_LOCALE
 from bot.ui.embeds import build_settings_panel_embed, build_support_panel_embed
 from bot.ui.views import build_settings_panel_components, build_support_panel_components
-from bot.utils.permissions import private_text_channel_overwrites
+from bot.utils.permissions import private_text_channel_overwrites, support_logs_channel_allow
 
 CATEGORY_NAME = "Tickets! Please"
 SUPPORT_CHANNEL_NAME = "support"
@@ -106,13 +106,19 @@ class SetupService:
             support_message_id=int(support_message.id),
             locale=settings.locale if settings else DEFAULT_LOCALE,
         )
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        await self._apply_support_log_overwrites(
+            rest,
+            logs_channel_id=settings_record.logs_channel_id,
+            support_roles=support_roles,
+        )
 
         settings_message = await self._upsert_settings_message(
             rest,
             guild_id=guild_id,
             settings_channel=channels.settings_channel,
             settings_record=settings_record,
-            support_roles=await self._support_role_repository.list_for_guild(session, guild_id),
+            support_roles=support_roles,
             settings_message_id=settings.settings_message_id if settings else None,
             created=created,
             reused=reused,
@@ -231,6 +237,18 @@ class SetupService:
         created: list[str],
         reused: list[str],
     ) -> hikari.GuildTextChannel:
+        if channel_id is not None:
+            existing = await self._fetch_channel(rest, channel_id, hikari.GuildTextChannel)
+            if existing is not None:
+                if permission_overwrites is not None:
+                    await self._apply_channel_overwrites(
+                        rest,
+                        channel_id=int(existing.id),
+                        permission_overwrites=permission_overwrites,
+                    )
+                reused.append(f"channel #{name}")
+                return existing
+
         if permission_overwrites is None:
             channel = await rest.create_guild_text_channel(
                 guild_id,
@@ -246,6 +264,61 @@ class SetupService:
             )
         created.append(f"channel #{name}")
         return channel
+
+    async def _apply_channel_overwrites(
+        self,
+        rest: hikari.api.RESTClient,
+        *,
+        channel_id: int,
+        permission_overwrites: list[hikari.PermissionOverwrite],
+    ) -> None:
+        for overwrite in permission_overwrites:
+            try:
+                await rest.edit_permission_overwrite(
+                    channel_id,
+                    overwrite.id,
+                    target_type=overwrite.type,
+                    allow=overwrite.allow,
+                    deny=overwrite.deny,
+                )
+            except hikari.NotFoundError:
+                LOGGER.warning("Cannot update overwrites for missing channel %s", channel_id)
+                return
+            except hikari.ForbiddenError:
+                LOGGER.warning("Missing permission to update overwrites for channel %s", channel_id)
+                return
+            except hikari.BadRequestError:
+                LOGGER.warning("Discord rejected overwrite update for channel %s", channel_id)
+                return
+
+    async def _apply_support_log_overwrites(
+        self,
+        rest: hikari.api.RESTClient,
+        *,
+        logs_channel_id: int | None,
+        support_roles: list[SupportRole],
+    ) -> None:
+        if logs_channel_id is None:
+            return
+
+        for role in support_roles:
+            try:
+                await rest.edit_permission_overwrite(
+                    logs_channel_id,
+                    role.role_id,
+                    target_type=hikari.PermissionOverwriteType.ROLE,
+                    allow=support_logs_channel_allow(),
+                    deny=hikari.Permissions.NONE,
+                )
+            except hikari.NotFoundError:
+                LOGGER.warning("Cannot update overwrites for missing logs channel")
+                return
+            except hikari.ForbiddenError:
+                LOGGER.warning("Missing permission to update logs channel overwrites")
+                return
+            except hikari.BadRequestError:
+                LOGGER.warning("Discord rejected logs channel overwrite update")
+                return
 
     async def _fetch_channel(
         self,

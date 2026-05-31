@@ -78,7 +78,11 @@ def private_text_channel_overwrites(
             id=guild_id,
             type=hikari.PermissionOverwriteType.ROLE,
             allow=hikari.Permissions.NONE,
-            deny=hikari.Permissions.VIEW_CHANNEL,
+            deny=(
+                hikari.Permissions.VIEW_CHANNEL
+                | hikari.Permissions.SEND_MESSAGES
+                | hikari.Permissions.CREATE_PUBLIC_THREADS
+            ),
         ),
         hikari.PermissionOverwrite(
             id=bot_user_id,
@@ -90,11 +94,10 @@ def private_text_channel_overwrites(
 
 
 def support_logs_channel_allow() -> hikari.Permissions:
-    """Permissions granted to support roles in the logs channel."""
+    """Read-only permissions granted to support roles in the logs channel."""
 
     return (
         hikari.Permissions.VIEW_CHANNEL
-        | hikari.Permissions.SEND_MESSAGES
         | hikari.Permissions.EMBED_LINKS
         | hikari.Permissions.READ_MESSAGE_HISTORY
     )
