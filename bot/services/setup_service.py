@@ -1,11 +1,11 @@
 """Guild setup orchestration service for `/tickets-setup`."""
 
 from __future__ import annotations
-from typing import TypeVar, cast
 
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TypeVar, cast
 
 import hikari
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -360,7 +360,7 @@ class SetupService:
         support_message_id: int,
         locale: str,
     ) -> GuildSettings:
-        fields = {
+        fields: dict[str, int | str | bool | None] = {
             "category_id": category_id,
             "support_channel_id": support_channel_id,
             "logs_channel_id": logs_channel_id,
@@ -378,6 +378,7 @@ class SetupService:
                 logs_channel_id=logs_channel_id,
                 settings_channel_id=settings_channel_id,
                 support_message_id=support_message_id,
+                locale=locale,
                 is_enabled=True,
             )
 

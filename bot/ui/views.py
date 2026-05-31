@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import cast
 
 import hikari
 import miru
@@ -71,9 +72,11 @@ class SupportPanelView(miru.View):
         locale = normalize_locale(locale)
         for item in self.children:
             if getattr(item, "custom_id", None) == SUPPORT_CREATE_TICKET_CUSTOM_ID:
-                item.label = t(locale, "buttons.create_ticket")
+                button = cast(miru.Button, item)
+                button.label = t(locale, "buttons.create_ticket")
             elif getattr(item, "custom_id", None) == SUPPORT_MY_TICKETS_CUSTOM_ID:
-                item.label = t(locale, "buttons.my_tickets")
+                button = cast(miru.Button, item)
+                button.label = t(locale, "buttons.my_tickets")
 
     async def _panel_ids(self, ctx: miru.ViewContext) -> tuple[int, int, int] | None:
         guild_id = ctx.guild_id
@@ -230,9 +233,11 @@ class SettingsPanelView(miru.View):
         for item in self.children:
             custom_id = getattr(item, "custom_id", None)
             if custom_id == SETTINGS_SUPPORT_ROLE_SELECT_CUSTOM_ID:
-                item.placeholder = t(locale, "selects.support_role")
+                role_select = cast(miru.RoleSelect, item)
+                role_select.placeholder = t(locale, "selects.support_role")
             elif custom_id == SETTINGS_LANGUAGE_SELECT_CUSTOM_ID:
-                item.placeholder = t(locale, "selects.language")
+                text_select = cast(miru.TextSelect, item)
+                text_select.placeholder = t(locale, "selects.language")
 
     async def _settings_ids(self, ctx: miru.ViewContext) -> tuple[int, int, int] | None:
         guild_id = ctx.guild_id
@@ -488,7 +493,8 @@ class TicketThreadView(miru.View):
         locale = normalize_locale(locale)
         for item in self.children:
             if getattr(item, "custom_id", None) == TICKET_CLOSE_CUSTOM_ID:
-                item.label = t(locale, "buttons.close_ticket")
+                button = cast(miru.Button, item)
+                button.label = t(locale, "buttons.close_ticket")
 
     async def _thread_ids(self, ctx: miru.ViewContext) -> tuple[int, int, int] | None:
         guild_id = ctx.guild_id

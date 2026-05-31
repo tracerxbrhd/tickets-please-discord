@@ -77,10 +77,11 @@ def _load_catalogs() -> dict[str, dict[str, Any]]:
     catalogs: dict[str, dict[str, Any]] = {}
     locale_root = resources.files("bot.i18n.locales")
     for locale_file in locale_root.iterdir():
-        if locale_file.suffix != ".json":
+        file_name = locale_file.name
+        if not file_name.endswith(".json"):
             continue
         with locale_file.open("r", encoding="utf-8") as file:
-            catalogs[locale_file.stem] = json.load(file)
+            catalogs[file_name.removesuffix(".json")] = json.load(file)
 
     if DEFAULT_LOCALE not in catalogs:
         raise RuntimeError(f"Missing default locale: {DEFAULT_LOCALE}")
