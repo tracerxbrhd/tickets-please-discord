@@ -105,6 +105,7 @@ class TicketMessageLogContext:
 
     ticket: Ticket
     settings: GuildSettings | None
+    is_moderator: bool
 
 
 class TicketService:
@@ -307,8 +308,10 @@ class TicketService:
         guild_id: int,
         thread_id: int,
         author_id: int,
+        author_role_ids: set[int],
+        author_permissions: hikari.Permissions,
     ) -> TicketMessageLogContext | None:
-        """Return a loggable claimed-ticket context for a thread message."""
+        """Return a loggable ticket context for a thread participant message."""
 
         ticket = await self._ticket_repository.get_by_thread_id(
             session,
@@ -317,13 +320,28 @@ class TicketService:
         )
         if ticket is None:
             return None
-        if ticket.status == TicketStatus.CLOSED or ticket.assigned_moderator_id is None:
-            return None
-        if author_id not in {ticket.user_id, ticket.assigned_moderator_id}:
+        if ticket.status == TicketStatus.CLOSED:
             return None
 
         settings = await self._settings_repository.get_by_guild_id(session, guild_id)
-        return TicketMessageLogContext(ticket=ticket, settings=settings)
+        support_roles = await self._support_role_repository.list_for_guild(session, guild_id)
+        support_role_ids = {role.role_id for role in support_roles}
+        is_moderator = (
+            author_id == ticket.assigned_moderator_id
+            or self._can_manage_ticket(
+                actor_role_ids=author_role_ids,
+                support_role_ids=support_role_ids,
+                actor_permissions=author_permissions,
+            )
+        )
+        if author_id != ticket.user_id and not is_moderator:
+            return None
+
+        return TicketMessageLogContext(
+            ticket=ticket,
+            settings=settings,
+            is_moderator=is_moderator,
+        )
 
     async def validate_ticket_claim(
         self,

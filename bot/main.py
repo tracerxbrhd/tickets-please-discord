@@ -27,6 +27,7 @@ from bot.ui.views import (
     SupportPanelView,
     TicketThreadView,
 )
+from bot.utils.permissions import member_permissions, member_role_ids
 
 LOGGER = logging.getLogger(__name__)
 
@@ -109,6 +110,8 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
                     guild_id=guild_id,
                     thread_id=thread_id,
                     author_id=author_id,
+                    author_role_ids=member_role_ids(event.member),
+                    author_permissions=member_permissions(event.member),
                 )
             if context is None:
                 return
@@ -120,6 +123,8 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
                 guild_id=guild_id,
                 author_id=author_id,
                 author_name=getattr(author, "username", ""),
+                author_avatar_url=_user_avatar_url(author),
+                is_moderator=context.is_moderator,
                 content=content,
                 attachment_names=_attachment_names(attachments),
                 message_id=int(message.id),
@@ -138,6 +143,14 @@ def create_bot(settings: Settings | None = None) -> hikari.GatewayBot:
         await database.dispose()
 
     return bot
+
+
+def _user_avatar_url(user: object) -> str | None:
+    for attribute_name in ("display_avatar_url", "avatar_url", "default_avatar_url"):
+        value = getattr(user, attribute_name, None)
+        if value is not None and value is not hikari.UNDEFINED:
+            return str(value)
+    return None
 
 
 def _attachment_names(attachments: list[object]) -> list[str]:

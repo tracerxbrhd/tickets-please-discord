@@ -601,6 +601,8 @@ def build_ticket_message_log_embed(
     guild_id: int,
     author_id: int,
     author_name: str,
+    author_avatar_url: str | None,
+    is_moderator: bool,
     content: str,
     attachment_names: list[str],
     message_id: int,
@@ -610,10 +612,10 @@ def build_ticket_message_log_embed(
     """Build a logs-thread embed for a ticket participant message."""
 
     locale = normalize_locale(locale)
-    is_moderator = ticket.assigned_moderator_id == author_id
     role_key = "logs.message_author_moderator" if is_moderator else "logs.message_author_user"
     color = SUCCESS_COLOR if is_moderator else BRAND_COLOR
     description = _trim_embed_text(content.strip() or t(locale, "logs.no_message_text"), limit=900)
+    author_label = author_name or str(author_id)
     embed = (
         hikari.Embed(
             title=t(locale, "logs.ticket_message_title", number=ticket.ticket_number),
@@ -621,6 +623,7 @@ def build_ticket_message_log_embed(
             color=color,
             timestamp=created_at,
         )
+        .set_author(name=author_label, icon=author_avatar_url)
         .add_field(t(locale, "logs.author"), f"<@{author_id}>", inline=True)
         .add_field(t(locale, "logs.author_type"), t(locale, role_key), inline=True)
         .add_field(
@@ -629,6 +632,8 @@ def build_ticket_message_log_embed(
             inline=False,
         )
     )
+    if author_avatar_url is not None:
+        embed.set_thumbnail(author_avatar_url)
     if author_name:
         embed.add_field(t(locale, "logs.account"), author_name, inline=True)
     if attachment_names:
